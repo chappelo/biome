@@ -26,7 +26,7 @@ declare_lint_rule! {
     /// ### Valid
     ///
     /// ```jsx
-    /// const egg = (props) => {
+    /// const Child = (props) => {
     /// return (
     ///     <div>
     ///         <p>{props.page}</p>
@@ -52,6 +52,11 @@ impl Rule for NoDestructure {
 
 fn run(ctx: &RuleContext<Self>) -> Self::Signals {
     let binding = ctx.query();
+
+    // TODO:
+    // function has jsx
+    // has single param which destructures
+    // not a render prop
 
     return Some(())
 }
