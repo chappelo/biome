@@ -2083,6 +2083,13 @@
 						{ "type": "null" }
 					]
 				},
+				"noDestructure": {
+					"description": "Succinct description of the rule.",
+					"anyOf": [
+						{ "$ref": "#/definitions/RuleConfiguration" },
+						{ "type": "null" }
+					]
+				},
 				"noDuplicateCustomProperties": {
 					"description": "Disallow duplicate custom properties within declaration blocks.",
 					"anyOf": [
