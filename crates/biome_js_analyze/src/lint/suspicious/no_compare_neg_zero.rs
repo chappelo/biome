@@ -1,6 +1,5 @@
 use biome_analyze::{
-    context::RuleContext, declare_lint_rule, ActionCategory, Ast, FixKind, Rule, RuleDiagnostic,
-    RuleSource,
+    context::RuleContext, declare_lint_rule, Ast, FixKind, Rule, RuleDiagnostic, RuleSource,
 };
 use biome_console::markup;
 use biome_js_factory::make;
@@ -64,7 +63,7 @@ impl Rule for NoCompareNegZero {
         if is_left_neg_zero || is_right_neg_zero {
             // SAFETY: Because we know those T![>] | T![>=] | T![<] | T![<=] | T![==] | T![===] | T![!=] | T![!==] SyntaxKind will
             // always success in to_string, you could look at our test case `noCompareNegZero.js`
-            let operator_kind = op.kind().to_string().unwrap();
+            let operator_kind = op.kind().to_string()?;
 
             Some(NoCompareNegZeroState {
                 operator_kind,
@@ -124,7 +123,7 @@ impl Rule for NoCompareNegZero {
         }
 
         Some(JsRuleAction::new(
-            ActionCategory::QuickFix,
+            ctx.metadata().action_category(ctx.category(), ctx.group()),
             ctx.metadata().applicability(),
             markup! { "Replace -0 with 0" }.to_owned(),
             mutation,

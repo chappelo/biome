@@ -28,6 +28,7 @@ use biome_formatter::Printed;
 use biome_fs::BiomePath;
 use biome_graphql_syntax::{GraphqlFileSource, GraphqlLanguage};
 use biome_grit_patterns::{GritQuery, GritQueryResult, GritTargetFile};
+use biome_grit_syntax::file_source::GritFileSource;
 use biome_html_syntax::HtmlFileSource;
 use biome_js_parser::{parse, JsParserOptions};
 use biome_js_syntax::{
@@ -37,9 +38,12 @@ use biome_json_syntax::{JsonFileSource, JsonLanguage};
 use biome_parser::AnyParse;
 use biome_project::PackageJson;
 use biome_rowan::{FileSourceError, NodeCache};
-use biome_string_case::StrExtension;
+use biome_string_case::StrLikeExtension;
+
+use grit::GritFileHandler;
 use html::HtmlFileHandler;
 pub use javascript::JsFormatterSettings;
+use rustc_hash::FxHashSet;
 use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::path::Path;
@@ -48,6 +52,7 @@ use tracing::instrument;
 mod astro;
 mod css;
 mod graphql;
+mod grit;
 mod html;
 mod javascript;
 mod json;
@@ -65,6 +70,7 @@ pub enum DocumentFileSource {
     Css(CssFileSource),
     Graphql(GraphqlFileSource),
     Html(HtmlFileSource),
+    Grit(GritFileSource),
     #[default]
     Unknown,
 }
@@ -96,6 +102,12 @@ impl From<GraphqlFileSource> for DocumentFileSource {
 impl From<HtmlFileSource> for DocumentFileSource {
     fn from(value: HtmlFileSource) -> Self {
         Self::Html(value)
+    }
+}
+
+impl From<GritFileSource> for DocumentFileSource {
+    fn from(value: GritFileSource) -> Self {
+        Self::Grit(value)
     }
 }
 
@@ -144,9 +156,13 @@ impl DocumentFileSource {
         if let Ok(file_source) = GraphqlFileSource::try_from_extension(extension) {
             return Ok(file_source.into());
         }
-        //if let Ok(file_source) = HtmlFileSource::try_from_extension(extension) {
-        //    return Ok(file_source.into());
-        //}
+        #[cfg(feature = "experimental-html")]
+        if let Ok(file_source) = HtmlFileSource::try_from_extension(extension) {
+            return Ok(file_source.into());
+        }
+        if let Ok(file_source) = GritFileSource::try_from_extension(extension) {
+            return Ok(file_source.into());
+        }
         Err(FileSourceError::UnknownExtension)
     }
 
@@ -170,9 +186,13 @@ impl DocumentFileSource {
         if let Ok(file_source) = GraphqlFileSource::try_from_language_id(language_id) {
             return Ok(file_source.into());
         }
-        //if let Ok(file_source) = HtmlFileSource::try_from_language_id(language_id) {
-        //    return Ok(file_source.into());
-        //}
+        #[cfg(feature = "experimental-html")]
+        if let Ok(file_source) = HtmlFileSource::try_from_language_id(language_id) {
+            return Ok(file_source.into());
+        }
+        if let Ok(file_source) = GritFileSource::try_from_language_id(language_id) {
+            return Ok(file_source.into());
+        }
         Err(FileSourceError::UnknownLanguageId)
     }
 
@@ -295,9 +315,23 @@ impl DocumentFileSource {
         }
     }
 
+    pub fn to_grit_file_source(&self) -> Option<GritFileSource> {
+        match self {
+            DocumentFileSource::Grit(grit) => Some(*grit),
+            _ => None,
+        }
+    }
+
     pub fn to_css_file_source(&self) -> Option<CssFileSource> {
         match self {
             DocumentFileSource::Css(css) => Some(*css),
+            _ => None,
+        }
+    }
+
+    pub fn to_html_file_source(&self) -> Option<HtmlFileSource> {
+        match self {
+            DocumentFileSource::Html(html) => Some(*html),
             _ => None,
         }
     }
@@ -313,8 +347,9 @@ impl DocumentFileSource {
             },
             DocumentFileSource::Css(_)
             | DocumentFileSource::Graphql(_)
-            | DocumentFileSource::Json(_) => true,
-            DocumentFileSource::Html(_) => false,
+            | DocumentFileSource::Json(_)
+            | DocumentFileSource::Grit(_) => true,
+            DocumentFileSource::Html(_) => cfg!(feature = "experimental-html"),
             DocumentFileSource::Unknown => false,
         }
     }
@@ -347,6 +382,7 @@ impl biome_console::fmt::Display for DocumentFileSource {
             DocumentFileSource::Css(_) => fmt.write_markup(markup! { "CSS" }),
             DocumentFileSource::Graphql(_) => fmt.write_markup(markup! { "GraphQL" }),
             DocumentFileSource::Html(_) => fmt.write_markup(markup! { "HTML" }),
+            DocumentFileSource::Grit(_) => fmt.write_markup(markup! { "Grit" }),
             DocumentFileSource::Unknown => fmt.write_markup(markup! { "Unknown" }),
         }
     }
@@ -364,6 +400,7 @@ pub struct FixAllParams<'a> {
     pub(crate) only: Vec<RuleSelector>,
     pub(crate) skip: Vec<RuleSelector>,
     pub(crate) rule_categories: RuleCategories,
+    pub(crate) suppression_reason: Option<String>,
 }
 
 #[derive(Default)]
@@ -421,6 +458,7 @@ pub(crate) struct LintParams<'a> {
     pub(crate) skip: Vec<RuleSelector>,
     pub(crate) categories: RuleCategories,
     pub(crate) manifest: Option<PackageJson>,
+    pub(crate) suppression_reason: Option<String>,
 }
 
 pub(crate) struct LintResults {
@@ -438,6 +476,7 @@ pub(crate) struct CodeActionsParams<'a> {
     pub(crate) language: DocumentFileSource,
     pub(crate) only: Vec<RuleSelector>,
     pub(crate) skip: Vec<RuleSelector>,
+    pub(crate) suppression_reason: Option<String>,
 }
 
 type Lint = fn(LintParams) -> LintResults;
@@ -525,6 +564,7 @@ pub(crate) struct Features {
     unknown: UnknownFileHandler,
     graphql: GraphqlFileHandler,
     html: HtmlFileHandler,
+    grit: GritFileHandler,
 }
 
 impl Features {
@@ -538,6 +578,7 @@ impl Features {
             svelte: SvelteFileHandler {},
             graphql: GraphqlFileHandler {},
             html: HtmlFileHandler {},
+            grit: GritFileHandler {},
             unknown: UnknownFileHandler::default(),
         }
     }
@@ -559,6 +600,7 @@ impl Features {
             DocumentFileSource::Css(_) => self.css.capabilities(),
             DocumentFileSource::Graphql(_) => self.graphql.capabilities(),
             DocumentFileSource::Html(_) => self.html.capabilities(),
+            DocumentFileSource::Grit(_) => self.grit.capabilities(),
             DocumentFileSource::Unknown => self.unknown.capabilities(),
         }
     }
@@ -610,7 +652,7 @@ pub(crate) fn parse_lang_from_script_opening_tag(
                 .ok()?;
             let tag = expression.as_jsx_tag_expression()?.tag().ok()?;
             let opening_element = tag.as_jsx_element()?.opening_element().ok()?;
-            let lang_attribute = opening_element.attributes().find_by_name("lang").ok()??;
+            let lang_attribute = opening_element.attributes().find_by_name("lang")?;
             let attribute_value = lang_attribute.initializer()?.value().ok()?;
             let attribute_inner_string =
                 attribute_value.as_jsx_string()?.inner_string_text().ok()?;
@@ -645,7 +687,7 @@ pub(crate) fn search(
     query: &GritQuery,
     _settings: WorkspaceSettingsHandle,
 ) -> Result<Vec<TextRange>, WorkspaceError> {
-    let query_result = query
+    let (query_result, _logs) = query
         .execute(GritTargetFile {
             path: path.to_path_buf(),
             parse,
@@ -784,25 +826,25 @@ impl<'a> RegistryVisitor<GraphqlLanguage> for SyntaxVisitor<'a> {
 ///
 #[derive(Debug)]
 struct LintVisitor<'a, 'b> {
-    pub(crate) enabled_rules: Vec<RuleFilter<'a>>,
-    pub(crate) disabled_rules: Vec<RuleFilter<'a>>,
+    pub(crate) enabled_rules: FxHashSet<RuleFilter<'a>>,
+    pub(crate) disabled_rules: FxHashSet<RuleFilter<'a>>,
     // lint_params: &'b LintParams<'a>,
-    only: &'b Vec<RuleSelector>,
-    skip: &'b Vec<RuleSelector>,
+    only: &'b [RuleSelector],
+    skip: &'b [RuleSelector],
     settings: Option<&'b Settings>,
     path: &'b Path,
 }
 
 impl<'a, 'b> LintVisitor<'a, 'b> {
     pub(crate) fn new(
-        only: &'b Vec<RuleSelector>,
-        skip: &'b Vec<RuleSelector>,
+        only: &'b [RuleSelector],
+        skip: &'b [RuleSelector],
         settings: Option<&'b Settings>,
         path: &'b Path,
     ) -> Self {
         Self {
-            enabled_rules: vec![],
-            disabled_rules: vec![],
+            enabled_rules: Default::default(),
+            disabled_rules: Default::default(),
             only,
             skip,
             settings,
@@ -810,20 +852,17 @@ impl<'a, 'b> LintVisitor<'a, 'b> {
         }
     }
 
-    fn finish(mut self) -> (Vec<RuleFilter<'a>>, Vec<RuleFilter<'a>>) {
+    fn finish(mut self) -> (FxHashSet<RuleFilter<'a>>, FxHashSet<RuleFilter<'a>>) {
         let has_only_filter = !self.only.is_empty();
-        let enabled_rules = if !has_only_filter {
-            self.settings
+        if !has_only_filter {
+            let enabled_rules = self
+                .settings
                 .and_then(|settings| settings.as_linter_rules(self.path))
                 .as_ref()
                 .map(|rules| rules.as_enabled_rules())
-                .unwrap_or_default()
-                .into_iter()
-                .collect::<Vec<_>>()
-        } else {
-            vec![]
-        };
-        self.enabled_rules.extend(enabled_rules);
+                .unwrap_or_default();
+            self.enabled_rules.extend(enabled_rules);
+        }
         (self.enabled_rules, self.disabled_rules)
     }
 
@@ -837,13 +876,13 @@ impl<'a, 'b> LintVisitor<'a, 'b> {
         for selector in self.only {
             let filter = RuleFilter::from(selector);
             if filter.match_rule::<R>() {
-                self.enabled_rules.push(filter)
+                self.enabled_rules.insert(filter);
             }
         }
         for selector in self.skip {
             let filter = RuleFilter::from(selector);
             if filter.match_rule::<R>() {
-                self.disabled_rules.push(filter)
+                self.disabled_rules.insert(filter);
             }
         }
     }
@@ -1006,8 +1045,7 @@ impl<'a, 'b> AssistsVisitor<'a, 'b> {
 
         let organize_imports_enabled = self
             .settings
-            .map(|settings| settings.organize_imports.enabled)
-            .unwrap_or_default();
+            .is_some_and(|settings| settings.organize_imports.enabled);
         if organize_imports_enabled && self.import_sorting.match_rule::<R>() {
             self.enabled_rules.push(self.import_sorting);
             return;
@@ -1131,8 +1169,8 @@ impl<'a, 'b> AnalyzerVisitorBuilder<'a, 'b> {
     #[must_use]
     pub(crate) fn with_linter_rules(
         mut self,
-        only: &'b Vec<RuleSelector>,
-        skip: &'b Vec<RuleSelector>,
+        only: &'b [RuleSelector],
+        skip: &'b [RuleSelector],
         path: &'b Path,
     ) -> Self {
         self.lint = Some(LintVisitor::new(only, skip, self.settings, path));

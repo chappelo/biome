@@ -13,12 +13,12 @@ use biome_rowan::{AstNode, BatchMutation, TriviaPieceKind};
 /// This new element will serve as trailing "newline" for the suppression comment.
 fn make_indentation_from_jsx_element(current_element: &JsxText) -> JsxText {
     if let Ok(text) = current_element.value_token() {
-        let chars = text.text().chars();
+        let bytes = text.text().bytes();
         let mut newlines = 0;
         let mut spaces = 0;
         let mut string_found = false;
-        for char in chars {
-            if char == '\"' {
+        for byte in bytes {
+            if byte == b'\"' {
                 if string_found {
                     string_found = false;
                 } else {
@@ -30,10 +30,10 @@ fn make_indentation_from_jsx_element(current_element: &JsxText) -> JsxText {
                 continue;
             }
 
-            if matches!(char, '\r' | '\n') {
+            if matches!(byte, b'\r' | b'\n') {
                 newlines += 1;
             }
-            if matches!(char, ' ') && newlines == 1 && !string_found {
+            if matches!(byte, b' ') && newlines == 1 && !string_found {
                 spaces += 1;
             }
         }
@@ -65,17 +65,14 @@ impl SuppressionAction for JsSuppressionAction {
             // There are some tokens that might contains newlines in their tokens, only
             // few nodes matches this criteria. If the token is inside one of those nodes,
             // then we check its content.
-            let nodes_that_might_contain_newlines = current_token
-                .parent()
-                .map(|node| {
-                    matches!(
-                        node.kind(),
-                        JsSyntaxKind::JSX_TEXT
-                            | JsSyntaxKind::JS_STRING_LITERAL
-                            | JsSyntaxKind::TEMPLATE_CHUNK
-                    )
-                })
-                .unwrap_or_default();
+            let nodes_that_might_contain_newlines = current_token.parent().is_some_and(|node| {
+                matches!(
+                    node.kind(),
+                    JsSyntaxKind::JSX_TEXT
+                        | JsSyntaxKind::JS_STRING_LITERAL
+                        | JsSyntaxKind::TEMPLATE_CHUNK
+                )
+            });
             if current_token
                 .trailing_trivia()
                 .pieces()
@@ -132,6 +129,7 @@ impl SuppressionAction for JsSuppressionAction {
         mutation: &mut BatchMutation<Self::Language>,
         apply_suppression: ApplySuppression<Self::Language>,
         suppression_text: &str,
+        suppression_reason: &str,
     ) {
         let ApplySuppression {
             token_to_apply_suppression,
@@ -154,13 +152,12 @@ impl SuppressionAction for JsSuppressionAction {
             // quick check is the element is inside a list
             if current_jsx_element
                 .parent()
-                .map(|p| JsxChildList::can_cast(p.kind()))
-                .unwrap_or_default()
+                .is_some_and(|p| JsxChildList::can_cast(p.kind()))
             {
                 let jsx_comment = jsx_expression_child(
                     token(T!['{']).with_trailing_trivia([(
                         TriviaPieceKind::SingleLineComment,
-                        format!("/* {suppression_text}: <explanation> */").as_str(),
+                        format!("/* {suppression_text}: {suppression_reason} */").as_str(),
                     )]),
                     token(T!['}']),
                 )
@@ -197,7 +194,7 @@ impl SuppressionAction for JsSuppressionAction {
                         (TriviaPieceKind::Newline, "\n"),
                         (
                             TriviaPieceKind::SingleLineComment,
-                            format!("// {suppression_text}: <explanation>").as_str(),
+                            format!("// {suppression_text}: {suppression_reason}").as_str(),
                         ),
                         (TriviaPieceKind::Newline, "\n"),
                     ])
@@ -205,7 +202,7 @@ impl SuppressionAction for JsSuppressionAction {
                     new_token = new_token.with_leading_trivia([
                         (
                             TriviaPieceKind::SingleLineComment,
-                            format!("// {suppression_text}: <explanation>").as_str(),
+                            format!("// {suppression_text}: {suppression_reason}").as_str(),
                         ),
                         (TriviaPieceKind::Newline, "\n"),
                     ])
@@ -220,7 +217,7 @@ impl SuppressionAction for JsSuppressionAction {
                         (TriviaPieceKind::Newline, "\n"),
                         (
                             TriviaPieceKind::SingleLineComment,
-                            format!("// {suppression_text}: <explanation>").as_str(),
+                            format!("// {suppression_text}: {suppression_reason}").as_str(),
                         ),
                         (TriviaPieceKind::Newline, "\n"),
                     ])
@@ -229,7 +226,7 @@ impl SuppressionAction for JsSuppressionAction {
                         (TriviaPieceKind::Newline, "\n"),
                         (
                             TriviaPieceKind::SingleLineComment,
-                            format!("// {suppression_text}: <explanation>").as_str(),
+                            format!("// {suppression_text}: {suppression_reason}").as_str(),
                         ),
                         (TriviaPieceKind::Newline, "\n"),
                     ])
@@ -238,12 +235,12 @@ impl SuppressionAction for JsSuppressionAction {
                 new_token = new_token.with_trailing_trivia([
                     (
                         TriviaPieceKind::SingleLineComment,
-                        format!("// {suppression_text}: <explanation>").as_str(),
+                        format!("// {suppression_text}: {suppression_reason}").as_str(),
                     ),
                     (TriviaPieceKind::Newline, "\n"),
                 ])
             } else {
-                let comment = format!("// {suppression_text}: <explanation>");
+                let comment = format!("// {suppression_text}: {suppression_reason}");
                 let mut trivia = vec![
                     (TriviaPieceKind::SingleLineComment, comment.as_str()),
                     (TriviaPieceKind::Newline, "\n"),

@@ -1,6 +1,5 @@
 use biome_analyze::{
-    context::RuleContext, declare_lint_rule, ActionCategory, Ast, FixKind, Rule, RuleDiagnostic,
-    RuleSource,
+    context::RuleContext, declare_lint_rule, Ast, FixKind, Rule, RuleDiagnostic, RuleSource,
 };
 use biome_console::markup;
 use biome_js_syntax::{JsRegexLiteralExpression, JsSyntaxKind, JsSyntaxToken};
@@ -126,6 +125,7 @@ impl Rule for NoUselessEscapeInRegex {
                                     b'&' | b'!' | b'#' | b'$' | b'%' | b'*' | b'+' | b','
                                     | b'.' | b':' | b';' | b'<' | b'=' | b'>' | b'?'
                                     | b'@' | b'`' | b'~' if has_v_flag => {
+                                        // SAFETY: there is at least one preceding character (`[`)
                                         if bytes[index-1] != *escaped && !byte_it.next().is_some_and(|(_, byte)| byte == escaped) {
                                             return Some(State {
                                                 backslash_index: index as u16,
@@ -149,8 +149,12 @@ impl Rule for NoUselessEscapeInRegex {
                                         let must_be_escaped =
                                             // `[_^\^]`
                                             // `[^^\^]`
-                                            (matches!(bytes.get(index-2), Some(&b'_' | &b'^')) && bytes[index-1] == b'^') ||
-                                            (byte_it.next().is_some_and(|(_, byte)| *byte == b'^') && (
+                                            (
+                                                matches!(bytes[index-2], b'_' | b'^')
+                                                && bytes[index-1] == b'^'
+                                            ) || (
+                                                byte_it.next().is_some_and(|(_, byte)| *byte == b'^'
+                                            ) && (
                                                 // `[_\^^]`
                                                 // `[^\^^]`
                                                 matches!(bytes[index-1], b'_' | b'^') ||
@@ -183,6 +187,7 @@ impl Rule for NoUselessEscapeInRegex {
                                 if has_v_flag && inner_class_count != 0 {
                                     inner_class_count -= 1;
                                 } else if !has_v_flag
+                                    && index >= 2 // handle edge case `[]`
                                     && bytes[index - 2] == b'\\'
                                     && bytes[index - 1] == b'-'
                                 {
@@ -281,7 +286,7 @@ impl Rule for NoUselessEscapeInRegex {
         let mut mutation = ctx.root().begin();
         mutation.replace_token(value_token, new_regex);
         Some(JsRuleAction::new(
-            ActionCategory::QuickFix,
+            ctx.metadata().action_category(ctx.category(), ctx.group()),
             ctx.metadata().applicability(),
             markup! { "Unescape the character." }.to_owned(),
             mutation,

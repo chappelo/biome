@@ -1,4 +1,5 @@
 use biome_rowan::FileSourceError;
+use biome_string_case::StrLikeExtension;
 use core::str;
 use std::{
     ffi::OsStr,
@@ -159,15 +160,18 @@ impl JsonFileSource {
         }
     }
 
+    #[must_use]
     pub fn with_allow_trailing_commas(mut self) -> Self {
         self.allow_trailing_commas = true;
         self
     }
 
+    #[must_use]
     pub fn allow_trailing_commas(&self) -> bool {
         self.allow_trailing_commas
     }
 
+    #[must_use]
     pub fn with_allow_comments(mut self) -> Self {
         self.allow_comments = true;
         self
@@ -279,7 +283,7 @@ impl TryFrom<&Path> for JsonFileSource {
         };
         // We assume the file extensions are case-insensitive
         // and we use the lowercase form of them for pattern matching
-        Self::try_from_extension(&extension.to_ascii_lowercase())
+        Self::try_from_extension(&extension.to_ascii_lowercase_cow())
     }
 }
 

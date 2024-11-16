@@ -1,6 +1,5 @@
 use biome_analyze::{
-    context::RuleContext, declare_lint_rule, ActionCategory, Ast, FixKind, Rule, RuleDiagnostic,
-    RuleSource,
+    context::RuleContext, declare_lint_rule, Ast, FixKind, Rule, RuleDiagnostic, RuleSource,
 };
 use biome_console::markup;
 use biome_js_syntax::{JsRegexLiteralExpression, JsSyntaxKind, JsSyntaxToken, TextRange, TextSize};
@@ -67,7 +66,6 @@ impl Rule for NoMultipleSpacesInRegularExpressionLiterals {
         let mut range_list = vec![];
         let mut previous_is_space = false;
         let mut first_consecutive_space_index = 0;
-        // We use `char_indices` to get the byte index of every character
         for (i, ch) in trimmed_text.bytes().enumerate() {
             if ch == b' ' {
                 if !previous_is_space {
@@ -177,7 +175,7 @@ impl Rule for NoMultipleSpacesInRegularExpressionLiterals {
         let mut mutation = ctx.root().begin();
         mutation.replace_token(token, next_trimmed_token);
         Some(JsRuleAction::new(
-            ActionCategory::QuickFix,
+            ctx.metadata().action_category(ctx.category(), ctx.group()),
             ctx.metadata().applicability(),
             markup! { "Use a quantifier instead." }.to_owned(),
             mutation,

@@ -30,6 +30,8 @@ use schemars::JsonSchema;
 declare_lint_rule! {
     /// Enforce that all React hooks are being called from the Top Level component functions.
     ///
+    /// _This rule should be used only in **React** projects._
+    ///
     /// To understand why this required see https://reactjs.org/docs/hooks-rules.html#only-call-hooks-at-the-top-level
     ///
     /// ## Examples
@@ -101,7 +103,7 @@ impl AnyJsFunctionOrMethod {
 pub enum Suggestion {
     None {
         hook_name_range: TextRange,
-        path: Vec<TextRange>,
+        path: Box<[TextRange]>,
         early_return: Option<TextRange>,
         is_nested: bool,
     },
@@ -231,12 +233,12 @@ fn is_nested_function_inside_component_or_hook(function: &AnyJsFunctionOrMethod)
     })
 }
 
-/// Model for tracking which function calls are preceeded by an early return.
+/// Model for tracking which function calls are preceded by an early return.
 ///
 /// The keys in the model are call sites and each value is the text range of an
-/// early return that preceeds such call site. Call sites without preceeding
+/// early return that precedes such call site. Call sites without preceding
 /// early returns are not included in the model. For call sites that are
-/// preceeded by multiple early returns, the return statement that we map to is
+/// preceded by multiple early returns, the return statement that we map to is
 /// implementation-defined.
 #[derive(Clone, Default)]
 struct EarlyReturnsModel(FxHashMap<JsCallExpression, TextRange>);
@@ -438,7 +440,7 @@ impl Rule for UseHookAtTopLevel {
                     // hooks to be called from the top-level.
                     return Some(Suggestion::None {
                         hook_name_range: get_hook_name_range()?,
-                        path,
+                        path: path.into_boxed_slice(),
                         early_return: None,
                         is_nested: true,
                     });
@@ -447,7 +449,7 @@ impl Rule for UseHookAtTopLevel {
                 if let Some(early_return) = early_returns.get(&call) {
                     return Some(Suggestion::None {
                         hook_name_range: get_hook_name_range()?,
-                        path,
+                        path: path.into_boxed_slice(),
                         early_return: Some(*early_return),
                         is_nested: false,
                     });
@@ -466,7 +468,7 @@ impl Rule for UseHookAtTopLevel {
             } else {
                 return Some(Suggestion::None {
                     hook_name_range: get_hook_name_range()?,
-                    path,
+                    path: path.into_boxed_slice(),
                     early_return: None,
                     is_nested: false,
                 });
@@ -551,7 +553,7 @@ impl Rule for UseHookAtTopLevel {
 /// hook.
 #[derive(Default, Deserialize, Serialize, Eq, PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields, default)]
 pub struct DeprecatedHooksOptions {}
 
 impl Deserializable for DeprecatedHooksOptions {

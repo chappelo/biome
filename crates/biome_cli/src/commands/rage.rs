@@ -300,10 +300,10 @@ impl Display for RageConfiguration<'_, '_> {
                             {KeyValuePair("JavaScript enabled", markup!({DebugDisplay(javascript_linter.enabled)}))}
                             {KeyValuePair("JSON enabled", markup!({DebugDisplay(json_linter.enabled)}))}
                             {KeyValuePair("CSS enabled", markup!({DebugDisplay(css_linter.enabled)}))}
-                            {KeyValuePair("GraphQL enabled", markup!({DebugDisplayOption(graphq_linter.enabled)}))}
+                            {KeyValuePair("GraphQL enabled", markup!({DebugDisplay(graphq_linter.enabled)}))}
                             {KeyValuePair("Recommended", markup!({DebugDisplay(linter_configuration.recommended.unwrap_or_default())}))}
                             {KeyValuePair("All", markup!({DebugDisplay(linter_configuration.all.unwrap_or_default())}))}
-                            {RageConfigurationLintRules("Enabled rules",linter_configuration)}
+                            {RageConfigurationLintRules("Enabled rules", linter_configuration)}
                         ).fmt(fmt)?;
                     }
                 }
@@ -328,6 +328,7 @@ impl Display for RageConfigurationLintRules<'_> {
         fmt.write_markup(markup! {{padding}{rules_str}":"})?;
         fmt.write_markup(markup! {{SOFT_LINE}})?;
         let rules = self.1.as_enabled_rules();
+        let rules = rules.iter().collect::<std::collections::BTreeSet<_>>();
         for rule in rules {
             fmt.write_markup(markup! {{padding}{rule}})?;
             fmt.write_markup(markup! {{SOFT_LINE}})?;

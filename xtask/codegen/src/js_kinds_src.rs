@@ -155,6 +155,7 @@ pub const JS_KINDS_SRC: KindsSrc = KindsSrc {
         "of",
         "out",
         "using",
+        "meta",
     ],
     literals: &[
         "JS_NUMBER_LITERAL",
@@ -184,6 +185,7 @@ pub const JS_KINDS_SRC: KindsSrc = KindsSrc {
         "JS_MODULE",
         "JS_MODULE_ITEM_LIST",
         "JS_SCRIPT",
+        "TS_DECLARATION_MODULE",
         "JS_EXPRESSION_SNIPPED",
         "JS_DIRECTIVE",
         "JS_DIRECTIVE_LIST",
@@ -427,6 +429,9 @@ pub const JS_KINDS_SRC: KindsSrc = KindsSrc {
         "TS_SETTER_SIGNATURE_TYPE_MEMBER",
         "TS_INDEX_SIGNATURE_TYPE_MEMBER",
         "TS_IMPORT_TYPE",
+        "TS_IMPORT_TYPE_ARGUMENTS",
+        "TS_IMPORT_TYPE_ASSERTION",
+        "TS_IMPORT_TYPE_ASSERTION_BLOCK",
         "TS_IMPORT_TYPE_QUALIFIER",
         "TS_ARRAY_TYPE",
         "TS_INDEXED_ACCESS_TYPE",
@@ -688,6 +693,8 @@ impl Field {
                     ("~=", _) => "whitespace_like",
                     (",", _) => "comma",
                     ("---", LanguageKind::Yaml) => "dashdashdash",
+                    ("<!--", LanguageKind::Html) => "comment_start",
+                    ("-->", LanguageKind::Html) => "comment_end",
                     _ => name,
                 };
 

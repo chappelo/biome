@@ -1,4 +1,5 @@
 use biome_rowan::FileSourceError;
+use biome_string_case::StrLikeExtension;
 use std::{borrow::Cow, ffi::OsStr, path::Path};
 
 /// Enum of the different ECMAScript standard versions.
@@ -280,10 +281,16 @@ impl JsFileSource {
                 }
             }
             Language::TypeScript { .. } => {
-                if matches!(self.variant, LanguageVariant::Jsx) {
-                    "tsx"
-                } else {
-                    "ts"
+                match self.variant {
+                    LanguageVariant::Standard => "ts",
+                    LanguageVariant::StandardRestricted => {
+                        // This could also be `mts`.
+                        // We choose `cts` because we expect this extension to be more widely used.
+                        // Moreover, it allows more valid syntax such as `import type` with import
+                        // attributes (See `noTypeOnlyImportAttributes` syntax rule).
+                        "cts"
+                    }
+                    LanguageVariant::Jsx => "tsx",
                 }
             }
         }
@@ -362,7 +369,7 @@ impl TryFrom<&Path> for JsFileSource {
             .file_name()
             // We assume the file extensions are case-insensitive.
             // Thus, we normalize the filrname to lowercase.
-            .map(|filename| filename.as_encoded_bytes().to_ascii_lowercase());
+            .map(|filename| filename.as_encoded_bytes().to_ascii_lowercase_cow());
 
         // We assume the file extensions are case-insensitive
         // and we use the lowercase form of them for pattern matching
@@ -377,7 +384,7 @@ impl TryFrom<&Path> for JsFileSource {
                 .extension()
                 // We assume the file extensions are case-insensitive.
                 // Thus, we normalize the extension to lowercase.
-                .map(|ext| Cow::Owned(ext.to_ascii_lowercase()))
+                .map(|ext| ext.to_ascii_lowercase_cow())
                 .ok_or(FileSourceError::MissingFileExtension)?,
         };
 

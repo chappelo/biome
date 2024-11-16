@@ -1,7 +1,7 @@
 use crate::util::TextRangeGritExt;
 use biome_grit_syntax::GritSyntaxNode;
-use grit_util::{AstCursor, AstNode as GritAstNode, ByteRange, CodeRange};
-use std::{borrow::Cow, ops::Deref, str::Utf8Error};
+use grit_util::{error::GritResult, AstCursor, AstNode as GritAstNode, ByteRange, CodeRange};
+use std::{borrow::Cow, ops::Deref};
 
 /// Wrapper around `GritSyntaxNode` as produced by our internal Grit parser.
 ///
@@ -71,7 +71,7 @@ impl GritAstNode for GritNode {
         self.0.prev_sibling().map(Into::into)
     }
 
-    fn text(&self) -> Result<Cow<str>, Utf8Error> {
+    fn text(&self) -> GritResult<Cow<str>> {
         Ok(Cow::Owned(self.0.text_trimmed().to_string()))
     }
 
@@ -116,7 +116,7 @@ impl Iterator for AncestorIterator {
     type Item = GritNode;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let node = self.node.as_ref().cloned()?;
+        let node = self.node.clone()?;
         self.node = node.parent();
         Some(node)
     }

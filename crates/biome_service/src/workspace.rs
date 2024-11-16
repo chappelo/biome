@@ -71,10 +71,11 @@ use enumflags2::{bitflags, BitFlags};
 #[cfg(feature = "schema")]
 use schemars::{gen::SchemaGenerator, schema::Schema, JsonSchema};
 use slotmap::{new_key_type, DenseSlotMap};
+use smallvec::SmallVec;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{borrow::Cow, panic::RefUnwindSafe, sync::Arc};
-use tracing::debug;
+use tracing::{debug, instrument};
 
 mod client;
 mod server;
@@ -119,12 +120,13 @@ impl FileFeaturesResult {
     }
 
     /// By default, all features are not supported by a file.
-    const WORKSPACE_FEATURES: [(FeatureKind, SupportKind); 5] = [
+    const WORKSPACE_FEATURES: [(FeatureKind, SupportKind); 6] = [
         (FeatureKind::Lint, SupportKind::FileNotSupported),
         (FeatureKind::Format, SupportKind::FileNotSupported),
         (FeatureKind::OrganizeImports, SupportKind::FileNotSupported),
         (FeatureKind::Search, SupportKind::FileNotSupported),
         (FeatureKind::Assists, SupportKind::FileNotSupported),
+        (FeatureKind::Debug, SupportKind::FileNotSupported),
     ];
 
     pub fn new() -> Self {
@@ -157,9 +159,18 @@ impl FileFeaturesResult {
                 .insert(FeatureKind::Search, SupportKind::Supported);
         }
 
+        if capabilities.debug.debug_syntax_tree.is_some()
+            || capabilities.debug.debug_formatter_ir.is_some()
+            || capabilities.debug.debug_control_flow.is_some()
+        {
+            self.features_supported
+                .insert(FeatureKind::Debug, SupportKind::Supported);
+        }
+
         self
     }
 
+    #[instrument(level = "debug", skip(self, settings))]
     pub(crate) fn with_settings_and_language(
         mut self,
         settings: &Settings,
@@ -225,7 +236,8 @@ impl FileFeaturesResult {
         }
 
         debug!(
-            "The file has the following feature sets: \n{:?}",
+            "The file {} has the following feature sets: \n{:?}",
+            path.display().to_string(),
             &self.features_supported
         );
 
@@ -255,8 +267,7 @@ impl FileFeaturesResult {
     fn supports_for(&self, feature: &FeatureKind) -> bool {
         self.features_supported
             .get(feature)
-            .map(|support_kind| matches!(support_kind, SupportKind::Supported))
-            .unwrap_or_default()
+            .is_some_and(|support_kind| matches!(support_kind, SupportKind::Supported))
     }
 
     pub fn supports_lint(&self) -> bool {
@@ -403,9 +414,14 @@ pub enum FeatureKind {
     OrganizeImports,
     Search,
     Assists,
+    Debug,
 }
 
 #[derive(Debug, Copy, Clone, Hash, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
+#[serde(
+    from = "smallvec::SmallVec<[FeatureKind; 6]>",
+    into = "smallvec::SmallVec<[FeatureKind; 6]>"
+)]
 pub struct FeatureName(BitFlags<FeatureKind>);
 
 impl FeatureName {
@@ -414,6 +430,27 @@ impl FeatureName {
     }
     pub fn empty() -> Self {
         Self(BitFlags::empty())
+    }
+
+    pub fn insert(&mut self, kind: FeatureKind) {
+        self.0.insert(kind);
+    }
+}
+
+impl From<SmallVec<[FeatureKind; 6]>> for FeatureName {
+    fn from(value: SmallVec<[FeatureKind; 6]>) -> Self {
+        value
+            .into_iter()
+            .fold(FeatureName::empty(), |mut acc, kind| {
+                acc.insert(kind);
+                acc
+            })
+    }
+}
+
+impl From<FeatureName> for SmallVec<[FeatureKind; 6]> {
+    fn from(value: FeatureName) -> Self {
+        value.iter().collect()
     }
 }
 
@@ -584,6 +621,7 @@ pub struct PullActionsParams {
     pub range: Option<TextRange>,
     pub only: Vec<RuleSelector>,
     pub skip: Vec<RuleSelector>,
+    pub suppression_reason: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -628,6 +666,8 @@ pub enum FixFileMode {
     SafeFixes,
     /// Applies [safe](biome_diagnostics::Applicability::Always) and [unsafe](biome_diagnostics::Applicability::MaybeIncorrect) fixes
     SafeAndUnsafeFixes,
+    /// Applies suppression comments to existing diagnostics when using `--suppress`
+    ApplySuppressions,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -639,6 +679,7 @@ pub struct FixFileParams {
     pub only: Vec<RuleSelector>,
     pub skip: Vec<RuleSelector>,
     pub rule_categories: RuleCategories,
+    pub suppression_reason: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -1028,12 +1069,14 @@ impl<'app, W: Workspace + ?Sized> FileGuard<'app, W> {
         range: Option<TextRange>,
         only: Vec<RuleSelector>,
         skip: Vec<RuleSelector>,
+        suppression_reason: Option<String>,
     ) -> Result<PullActionsResult, WorkspaceError> {
         self.workspace.pull_actions(PullActionsParams {
             path: self.path.clone(),
             range,
             only,
             skip,
+            suppression_reason,
         })
     }
 
@@ -1064,6 +1107,7 @@ impl<'app, W: Workspace + ?Sized> FileGuard<'app, W> {
         rule_categories: RuleCategories,
         only: Vec<RuleSelector>,
         skip: Vec<RuleSelector>,
+        suppression_reason: Option<String>,
     ) -> Result<FixFileResult, WorkspaceError> {
         self.workspace.fix_file(FixFileParams {
             path: self.path.clone(),
@@ -1072,6 +1116,7 @@ impl<'app, W: Workspace + ?Sized> FileGuard<'app, W> {
             only,
             skip,
             rule_categories,
+            suppression_reason,
         })
     }
 

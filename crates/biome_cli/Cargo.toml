@@ -58,7 +58,7 @@ tracing-subscriber       = { workspace = true, features = ["env-filter", "json"]
 tracing-tree             = "0.4.0"
 
 [target.'cfg(unix)'.dependencies]
-libc  = "0.2.158"
+libc  = "0.2.161"
 tokio = { workspace = true, features = ["process"] }
 
 [target.'cfg(windows)'.dependencies]
@@ -77,7 +77,8 @@ regex                = { workspace = true }
 tokio                = { workspace = true, features = ["io-util"] }
 
 [features]
-docgen = ["bpaf/docgen"]
+docgen            = ["bpaf/docgen"]
+experimental-html = ["biome_service/experimental-html"]
 
 [lints]
 workspace = true

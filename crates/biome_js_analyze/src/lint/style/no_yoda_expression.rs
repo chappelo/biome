@@ -1,15 +1,14 @@
 use crate::{utils::is_node_equal, JsRuleAction};
 use biome_analyze::{
-    context::RuleContext, declare_lint_rule, ActionCategory, Ast, FixKind, Rule, RuleDiagnostic,
-    RuleSource,
+    context::RuleContext, declare_lint_rule, Ast, FixKind, Rule, RuleDiagnostic, RuleSource,
 };
 use biome_console::markup;
 use biome_diagnostics::Applicability;
 use biome_js_factory::make::{self, js_binary_expression, token};
 use biome_js_syntax::{
-    AnyJsExpression, AnyJsLiteralExpression, AnyJsStatement, JsBinaryExpression, JsBinaryOperator,
-    JsLanguage, JsLogicalExpression, JsLogicalOperator, JsSyntaxKind, JsUnaryOperator,
-    JsYieldArgument, JsYieldExpression, T,
+    AnyJsExpression, AnyJsStatement, JsBinaryExpression, JsBinaryOperator, JsLanguage,
+    JsLogicalExpression, JsLogicalOperator, JsSyntaxKind, JsUnaryOperator, JsYieldArgument,
+    JsYieldExpression, T,
 };
 use biome_rowan::{AstNode, BatchMutationExt, NodeOrToken, SyntaxTriviaPiece, TriviaPieceKind};
 
@@ -82,8 +81,8 @@ impl Rule for NoYodaExpression {
         let right = node.right().ok()?;
 
         let has_yoda_expression = node.is_comparison_operator()
-            && is_literal_expression(&left)?
-            && !is_literal_expression(&right)?
+            && left.is_literal_expression()
+            && !right.is_literal_expression()
             && !is_range_assertion(node);
 
         has_yoda_expression.then_some(())
@@ -183,7 +182,7 @@ impl Rule for NoYodaExpression {
         }
 
         Some(JsRuleAction::new(
-            ActionCategory::QuickFix,
+            ctx.metadata().action_category(ctx.category(), ctx.group()),
             Applicability::Always,
             markup! { "Flip the operators of the expression." }.to_owned(),
             mutation,
@@ -210,42 +209,6 @@ fn clone_with_trivia(
 ) -> Option<AnyJsExpression> {
     node.with_leading_trivia_pieces(leading_trivia?.clone())?
         .with_trailing_trivia_pieces(trailing_trivia?.clone())
-}
-
-fn is_literal_expression(expression: &AnyJsExpression) -> Option<bool> {
-    match expression {
-        // Any literal: 1, true, null, etc
-        AnyJsExpression::AnyJsLiteralExpression(_) => Some(true),
-
-        // Static template literals: `foo`
-        AnyJsExpression::JsTemplateExpression(template_expression) => Some(
-            template_expression
-                .elements()
-                .into_iter()
-                .all(|element| element.as_js_template_chunk_element().is_some()),
-        ),
-
-        // Negative numeric literal: -1
-        AnyJsExpression::JsUnaryExpression(unary_expression) => {
-            let is_minus_operator =
-                matches!(unary_expression.operator(), Ok(JsUnaryOperator::Minus));
-            let is_number_expression = matches!(
-                unary_expression.argument(),
-                Ok(AnyJsExpression::AnyJsLiteralExpression(
-                    AnyJsLiteralExpression::JsNumberLiteralExpression(_)
-                ))
-            );
-
-            Some(is_minus_operator && is_number_expression)
-        }
-
-        // Parenthesized expression: (1)
-        AnyJsExpression::JsParenthesizedExpression(parenthesized_expression) => {
-            is_literal_expression(&parenthesized_expression.expression().ok()?)
-        }
-
-        _ => Some(false),
-    }
 }
 
 /// Determines whether the passed node is inside a range expression, based on the following conditions:

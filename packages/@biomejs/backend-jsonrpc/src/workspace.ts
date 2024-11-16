@@ -24,7 +24,8 @@ export type FeatureKind =
 	| "Lint"
 	| "OrganizeImports"
 	| "Search"
-	| "Assists";
+	| "Assists"
+	| "Debug";
 export type FileKind = FileKind2[];
 /**
  * The priority of the file
@@ -35,15 +36,9 @@ export type FileKind2 =
 	| "Ignore"
 	| "Inspectable"
 	| "Handleable";
-export interface SupportsFeatureResult {
-	reason?: SupportKind;
+export interface FileFeaturesResult {
+	features_supported: {};
 }
-export type SupportKind =
-	| "Supported"
-	| "Ignored"
-	| "Protected"
-	| "FeatureNotEnabled"
-	| "FileNotSupported";
 export interface UpdateSettingsParams {
 	configuration: PartialConfiguration;
 	gitignore_matches: string[];
@@ -554,6 +549,10 @@ export interface PartialJavascriptOrganizeImports {}
  */
 export interface PartialJavascriptParser {
 	/**
+	 * Enables parsing of Grit metavariables. Defaults to `false`.
+	 */
+	gritMetavariables?: boolean;
+	/**
 	* It enables the experimental and unsafe parsing of parameter decorators
 
 These decorators belong to an old proposal, and they are subject to change.
@@ -683,13 +682,17 @@ export type VcsClientKind = "git";
  */
 export interface Source {
 	/**
-	 * Enforce props sorting in JSX elements.
+	 * Provides a whole-source code action to sort the imports in the file using import groups and natural ordering.
 	 */
-	sortJsxProps?: RuleAssistConfiguration;
+	organizeImports?: RuleAssistConfiguration_for_Options;
+	/**
+	 * Enforce attribute sorting in JSX elements.
+	 */
+	useSortedAttributes?: RuleAssistConfiguration_for_Null;
 	/**
 	 * Sorts the keys of a JSON object in natural order
 	 */
-	useSortedKeys?: RuleAssistConfiguration;
+	useSortedKeys?: RuleAssistConfiguration_for_Null;
 }
 export type QuoteStyle = "double" | "single";
 export type ArrowParentheses = "always" | "asNeeded";
@@ -1105,11 +1108,11 @@ export interface Correctness {
 	/**
 	 * Disallow the use of dependencies that aren't specified in the package.json.
 	 */
-	noUndeclaredDependencies?: RuleConfiguration_for_Null;
+	noUndeclaredDependencies?: RuleConfiguration_for_NoUndeclaredDependenciesOptions;
 	/**
 	 * Prevents the usage of variables that haven't been declared inside the document.
 	 */
-	noUndeclaredVariables?: RuleConfiguration_for_Null;
+	noUndeclaredVariables?: RuleConfiguration_for_UndeclaredVariablesOptions;
 	/**
 	 * Disallow unknown CSS value functions.
 	 */
@@ -1189,7 +1192,7 @@ export interface Correctness {
 	/**
 	 * Enforce all dependencies are correctly specified in a React hook.
 	 */
-	useExhaustiveDependencies?: RuleConfiguration_for_HooksOptions;
+	useExhaustiveDependencies?: RuleConfiguration_for_UseExhaustiveDependenciesOptions;
 	/**
 	 * Enforce that all React hooks are being called from the Top Level component functions.
 	 */
@@ -1228,9 +1231,17 @@ export interface Nursery {
 	 */
 	noCommonJs?: RuleConfiguration_for_Null;
 	/**
-	 * Succinct description of the rule.
+	 * Disallow a lower specificity selector from coming after a higher specificity selector.
 	 */
-	noDestructure?: RuleConfiguration_for_Null;
+	noDescendingSpecificity?: RuleConfiguration_for_Null;
+	/**
+	 * Disallow direct assignments to document.cookie.
+	 */
+	noDocumentCookie?: RuleConfiguration_for_Null;
+	/**
+	 * Prevents importing next/document outside of pages/_document.jsx in Next.js projects.
+	 */
+	noDocumentImportInPage?: RuleConfiguration_for_Null;
 	/**
 	 * Disallow duplicate custom properties within declaration blocks.
 	 */
@@ -1239,6 +1250,10 @@ export interface Nursery {
 	 * Disallow duplicate conditions in if-else-if chains
 	 */
 	noDuplicateElseIf?: RuleConfiguration_for_Null;
+	/**
+	 * Disallow duplicate properties within declaration blocks.
+	 */
+	noDuplicateProperties?: RuleConfiguration_for_Null;
 	/**
 	 * No duplicated fields in GraphQL operations.
 	 */
@@ -1256,9 +1271,37 @@ export interface Nursery {
 	 */
 	noExportedImports?: RuleConfiguration_for_Null;
 	/**
+	 * Disallow the use of __dirname and __filename in the global scope.
+	 */
+	noGlobalDirnameFilename?: RuleFixConfiguration_for_Null;
+	/**
+	 * Prevent usage of \<head> element in a Next.js project.
+	 */
+	noHeadElement?: RuleConfiguration_for_Null;
+	/**
+	 * Prevent using the next/head module in pages/_document.js on Next.js projects.
+	 */
+	noHeadImportInDocument?: RuleConfiguration_for_Null;
+	/**
+	 * Prevent usage of \<img> element in a Next.js project.
+	 */
+	noImgElement?: RuleConfiguration_for_Null;
+	/**
 	 * Disallows the use of irregular whitespace characters.
 	 */
 	noIrregularWhitespace?: RuleConfiguration_for_Null;
+	/**
+	 * Disallow missing var function for css variables.
+	 */
+	noMissingVarFunction?: RuleConfiguration_for_Null;
+	/**
+	 * Disallow nested ternary expressions.
+	 */
+	noNestedTernary?: RuleConfiguration_for_Null;
+	/**
+	 * Disallow octal escape sequences in string literals
+	 */
+	noOctalEscape?: RuleConfiguration_for_Null;
 	/**
 	 * Disallow the use of process.env.
 	 */
@@ -1274,7 +1317,7 @@ export interface Nursery {
 	/**
 	 * Disallow usage of sensitive data such as API keys and tokens.
 	 */
-	noSecrets?: RuleConfiguration_for_Null;
+	noSecrets?: RuleConfiguration_for_NoSecretsOptions;
 	/**
 	 * Enforce that static, visible elements (such as \<div>) that have click handlers use the valid role attribute.
 	 */
@@ -1284,6 +1327,10 @@ export interface Nursery {
 	 */
 	noSubstr?: RuleFixConfiguration_for_Null;
 	/**
+	 * Disallow template literal placeholder syntax in regular strings.
+	 */
+	noTemplateCurlyInString?: RuleConfiguration_for_Null;
+	/**
 	 * Disallow unknown pseudo-class selectors.
 	 */
 	noUnknownPseudoClass?: RuleConfiguration_for_Null;
@@ -1292,9 +1339,21 @@ export interface Nursery {
 	 */
 	noUnknownPseudoElement?: RuleConfiguration_for_Null;
 	/**
+	 * Disallow unknown type selectors.
+	 */
+	noUnknownTypeSelector?: RuleConfiguration_for_Null;
+	/**
 	 * Disallow unnecessary escape sequence in regular expression literals.
 	 */
 	noUselessEscapeInRegex?: RuleFixConfiguration_for_Null;
+	/**
+	 * Disallow unnecessary String.raw function in template string literals without any escape sequence.
+	 */
+	noUselessStringRaw?: RuleConfiguration_for_Null;
+	/**
+	 * Disallow the use of useless undefined.
+	 */
+	noUselessUndefined?: RuleFixConfiguration_for_Null;
 	/**
 	 * Disallow use of @value rule in css modules.
 	 */
@@ -1312,6 +1371,18 @@ export interface Nursery {
 	 */
 	useAriaPropsSupportedByRole?: RuleConfiguration_for_Null;
 	/**
+	 * Use at() instead of integer index access.
+	 */
+	useAtIndex?: RuleFixConfiguration_for_Null;
+	/**
+	 * Enforce using single if instead of nested if clauses.
+	 */
+	useCollapsedIf?: RuleFixConfiguration_for_Null;
+	/**
+	 * Enforce declaring components only within modules that export React Components exclusively.
+	 */
+	useComponentExportOnlyModules?: RuleConfiguration_for_UseComponentExportOnlyModulesOptions;
+	/**
 	 * This rule enforces consistent use of curly braces inside JSX attributes and JSX children.
 	 */
 	useConsistentCurlyBraces?: RuleFixConfiguration_for_Null;
@@ -1324,9 +1395,29 @@ export interface Nursery {
 	 */
 	useDeprecatedReason?: RuleConfiguration_for_Null;
 	/**
+	 * Require explicit return types on functions and class methods.
+	 */
+	useExplicitType?: RuleConfiguration_for_Null;
+	/**
+	 * Enforces the use of a recommended display strategy with Google Fonts.
+	 */
+	useGoogleFontDisplay?: RuleConfiguration_for_Null;
+	/**
+	 * Ensure the preconnect attribute is used when using Google Fonts.
+	 */
+	useGoogleFontPreconnect?: RuleFixConfiguration_for_Null;
+	/**
+	 * Require for-in loops to include an if statement.
+	 */
+	useGuardForIn?: RuleConfiguration_for_Null;
+	/**
 	 * Disallows package private imports.
 	 */
 	useImportRestrictions?: RuleConfiguration_for_Null;
+	/**
+	 * Enforce specifying the name of GraphQL operations.
+	 */
+	useNamedOperation?: RuleFixConfiguration_for_Null;
 	/**
 	 * Enforce the sorting of CSS utility classes.
 	 */
@@ -1577,7 +1668,7 @@ export interface Style {
 	/**
 	 * Prevent extra closing tags for components without children
 	 */
-	useSelfClosingElements?: RuleFixConfiguration_for_Null;
+	useSelfClosingElements?: RuleFixConfiguration_for_UseSelfClosingElementsOptions;
 	/**
 	 * When expressing array types, this rule promotes the usage of T\[] shorthand instead of Array\<T>.
 	 */
@@ -1810,7 +1901,7 @@ export interface Suspicious {
 	/**
 	 * Disallow direct use of Object.prototype builtins.
 	 */
-	noPrototypeBuiltins?: RuleConfiguration_for_Null;
+	noPrototypeBuiltins?: RuleFixConfiguration_for_Null;
 	/**
 	 * Prevents React-specific JSX properties from being used.
 	 */
@@ -1892,7 +1983,7 @@ export interface Suspicious {
 	 */
 	useNumberToFixedDigitsArgument?: RuleFixConfiguration_for_Null;
 	/**
-	 * This rule verifies the result of typeof $expr unary expressions is being compared to valid values, either string literals containing valid type names or other typeof expressions
+	 * This rule checks that the result of a `typeof' expression is compared to a valid value.
 	 */
 	useValidTypeof?: RuleFixConfiguration_for_Null;
 }
@@ -1947,7 +2038,12 @@ export interface OverrideOrganizeImportsConfiguration {
 	 */
 	enabled?: boolean;
 }
-export type RuleAssistConfiguration = "on" | "off";
+export type RuleAssistConfiguration_for_Options =
+	| RuleAssistPlainConfiguration
+	| RuleAssistWithOptions_for_Options;
+export type RuleAssistConfiguration_for_Null =
+	| RuleAssistPlainConfiguration
+	| RuleAssistWithOptions_for_Null;
 export type RuleFixConfiguration_for_Null =
 	| RulePlainConfiguration
 	| RuleWithFixOptions_for_Null;
@@ -1966,9 +2062,15 @@ export type RuleFixConfiguration_for_ValidAriaRoleOptions =
 export type RuleConfiguration_for_ComplexityOptions =
 	| RulePlainConfiguration
 	| RuleWithOptions_for_ComplexityOptions;
-export type RuleConfiguration_for_HooksOptions =
+export type RuleConfiguration_for_NoUndeclaredDependenciesOptions =
 	| RulePlainConfiguration
-	| RuleWithOptions_for_HooksOptions;
+	| RuleWithOptions_for_NoUndeclaredDependenciesOptions;
+export type RuleConfiguration_for_UndeclaredVariablesOptions =
+	| RulePlainConfiguration
+	| RuleWithOptions_for_UndeclaredVariablesOptions;
+export type RuleConfiguration_for_UseExhaustiveDependenciesOptions =
+	| RulePlainConfiguration
+	| RuleWithOptions_for_UseExhaustiveDependenciesOptions;
 export type RuleConfiguration_for_DeprecatedHooksOptions =
 	| RulePlainConfiguration
 	| RuleWithOptions_for_DeprecatedHooksOptions;
@@ -1981,6 +2083,12 @@ export type RuleConfiguration_for_RestrictedImportsOptions =
 export type RuleFixConfiguration_for_NoRestrictedTypesOptions =
 	| RulePlainConfiguration
 	| RuleWithFixOptions_for_NoRestrictedTypesOptions;
+export type RuleConfiguration_for_NoSecretsOptions =
+	| RulePlainConfiguration
+	| RuleWithOptions_for_NoSecretsOptions;
+export type RuleConfiguration_for_UseComponentExportOnlyModulesOptions =
+	| RulePlainConfiguration
+	| RuleWithOptions_for_UseComponentExportOnlyModulesOptions;
 export type RuleConfiguration_for_ConsistentMemberAccessibilityOptions =
 	| RulePlainConfiguration
 	| RuleWithOptions_for_ConsistentMemberAccessibilityOptions;
@@ -2002,12 +2110,36 @@ export type RuleConfiguration_for_FilenamingConventionOptions =
 export type RuleFixConfiguration_for_NamingConventionOptions =
 	| RulePlainConfiguration
 	| RuleWithFixOptions_for_NamingConventionOptions;
+export type RuleFixConfiguration_for_UseSelfClosingElementsOptions =
+	| RulePlainConfiguration
+	| RuleWithFixOptions_for_UseSelfClosingElementsOptions;
 export type RuleFixConfiguration_for_NoConsoleOptions =
 	| RulePlainConfiguration
 	| RuleWithFixOptions_for_NoConsoleOptions;
 export type RuleFixConfiguration_for_NoDoubleEqualsOptions =
 	| RulePlainConfiguration
 	| RuleWithFixOptions_for_NoDoubleEqualsOptions;
+export type RuleAssistPlainConfiguration = "on" | "off";
+export interface RuleAssistWithOptions_for_Options {
+	/**
+	 * The severity of the emitted diagnostics by the rule
+	 */
+	level: RuleAssistPlainConfiguration;
+	/**
+	 * Rule's options
+	 */
+	options: Options;
+}
+export interface RuleAssistWithOptions_for_Null {
+	/**
+	 * The severity of the emitted diagnostics by the rule
+	 */
+	level: RuleAssistPlainConfiguration;
+	/**
+	 * Rule's options
+	 */
+	options: null;
+}
 export type RulePlainConfiguration = "warn" | "error" | "info" | "off";
 export interface RuleWithFixOptions_for_Null {
 	/**
@@ -2081,7 +2213,7 @@ export interface RuleWithOptions_for_ComplexityOptions {
 	 */
 	options: ComplexityOptions;
 }
-export interface RuleWithOptions_for_HooksOptions {
+export interface RuleWithOptions_for_NoUndeclaredDependenciesOptions {
 	/**
 	 * The severity of the emitted diagnostics by the rule
 	 */
@@ -2089,7 +2221,27 @@ export interface RuleWithOptions_for_HooksOptions {
 	/**
 	 * Rule's options
 	 */
-	options: HooksOptions;
+	options: NoUndeclaredDependenciesOptions;
+}
+export interface RuleWithOptions_for_UndeclaredVariablesOptions {
+	/**
+	 * The severity of the emitted diagnostics by the rule
+	 */
+	level: RulePlainConfiguration;
+	/**
+	 * Rule's options
+	 */
+	options: UndeclaredVariablesOptions;
+}
+export interface RuleWithOptions_for_UseExhaustiveDependenciesOptions {
+	/**
+	 * The severity of the emitted diagnostics by the rule
+	 */
+	level: RulePlainConfiguration;
+	/**
+	 * Rule's options
+	 */
+	options: UseExhaustiveDependenciesOptions;
 }
 export interface RuleWithOptions_for_DeprecatedHooksOptions {
 	/**
@@ -2138,6 +2290,26 @@ export interface RuleWithFixOptions_for_NoRestrictedTypesOptions {
 	 * Rule's options
 	 */
 	options: NoRestrictedTypesOptions;
+}
+export interface RuleWithOptions_for_NoSecretsOptions {
+	/**
+	 * The severity of the emitted diagnostics by the rule
+	 */
+	level: RulePlainConfiguration;
+	/**
+	 * Rule's options
+	 */
+	options: NoSecretsOptions;
+}
+export interface RuleWithOptions_for_UseComponentExportOnlyModulesOptions {
+	/**
+	 * The severity of the emitted diagnostics by the rule
+	 */
+	level: RulePlainConfiguration;
+	/**
+	 * Rule's options
+	 */
+	options: UseComponentExportOnlyModulesOptions;
 }
 export interface RuleWithOptions_for_ConsistentMemberAccessibilityOptions {
 	/**
@@ -2221,6 +2393,20 @@ export interface RuleWithFixOptions_for_NamingConventionOptions {
 	 */
 	options: NamingConventionOptions;
 }
+export interface RuleWithFixOptions_for_UseSelfClosingElementsOptions {
+	/**
+	 * The kind of the code actions emitted by the rule
+	 */
+	fix?: FixKind;
+	/**
+	 * The severity of the emitted diagnostics by the rule
+	 */
+	level: RulePlainConfiguration;
+	/**
+	 * Rule's options
+	 */
+	options: UseSelfClosingElementsOptions;
+}
 export interface RuleWithFixOptions_for_NoConsoleOptions {
 	/**
 	 * The kind of the code actions emitted by the rule
@@ -2249,6 +2435,10 @@ export interface RuleWithFixOptions_for_NoDoubleEqualsOptions {
 	 */
 	options: NoDoubleEqualsOptions;
 }
+export interface Options {
+	importGroups?: ImportGroup[];
+	legacy?: boolean;
+}
 /**
  * Used to identify the kind of code action emitted by a rule
  */
@@ -2263,19 +2453,19 @@ export interface NoLabelWithoutControlOptions {
 	/**
 	 * Array of component names that should be considered the same as an `input` element.
 	 */
-	inputComponents: string[];
+	inputComponents?: string[];
 	/**
 	 * Array of attributes that should be treated as the `label` accessible text content.
 	 */
-	labelAttributes: string[];
+	labelAttributes?: string[];
 	/**
 	 * Array of component names that should be considered the same as a `label` element.
 	 */
-	labelComponents: string[];
+	labelComponents?: string[];
 }
 export interface ValidAriaRoleOptions {
-	allowInvalidRoles: string[];
-	ignoreNonDom: boolean;
+	allowInvalidRoles?: string[];
+	ignoreNonDom?: boolean;
 }
 /**
  * Options for the rule `noExcessiveCognitiveComplexity`.
@@ -2284,16 +2474,47 @@ export interface ComplexityOptions {
 	/**
 	 * The maximum complexity score that we allow. Anything higher is considered excessive.
 	 */
-	maxAllowedComplexity: number;
+	maxAllowedComplexity?: number;
+}
+/**
+ * Rule's options
+ */
+export interface NoUndeclaredDependenciesOptions {
+	/**
+	 * If set to `false`, then the rule will show an error when `devDependencies` are imported. Defaults to `true`.
+	 */
+	devDependencies?: DependencyAvailability;
+	/**
+	 * If set to `false`, then the rule will show an error when `optionalDependencies` are imported. Defaults to `true`.
+	 */
+	optionalDependencies?: DependencyAvailability;
+	/**
+	 * If set to `false`, then the rule will show an error when `peerDependencies` are imported. Defaults to `true`.
+	 */
+	peerDependencies?: DependencyAvailability;
+}
+export interface UndeclaredVariablesOptions {
+	/**
+	 * Check undeclared types.
+	 */
+	checkTypes?: boolean;
 }
 /**
  * Options for the rule `useExhaustiveDependencies`
  */
-export interface HooksOptions {
+export interface UseExhaustiveDependenciesOptions {
 	/**
 	 * List of hooks of which the dependencies should be validated.
 	 */
-	hooks: Hook[];
+	hooks?: Hook[];
+	/**
+	 * Whether to report an error when a hook has no dependencies array.
+	 */
+	reportMissingDependenciesArray?: boolean;
+	/**
+	 * Whether to report an error when a dependency is listed in the dependencies array but isn't used. Defaults to true.
+	 */
+	reportUnnecessaryDependencies?: boolean;
 }
 /**
  * Options for the `useHookAtTopLevel` rule have been deprecated, since we now use the React hook naming convention to determine whether a function is a hook.
@@ -2303,7 +2524,7 @@ export interface UseImportExtensionsOptions {
 	/**
 	 * A map of custom import extension mappings, where the key is the inspected file extension, and the value is a pair of `module` extension and `component` import extension
 	 */
-	suggestedExtensions: {};
+	suggestedExtensions?: {};
 }
 /**
  * Options for the rule `noRestrictedImports`.
@@ -2315,10 +2536,26 @@ export interface RestrictedImportsOptions {
 	paths: {};
 }
 export interface NoRestrictedTypesOptions {
-	types: {};
+	types?: {};
+}
+export interface NoSecretsOptions {
+	/**
+	 * Set entropy threshold (default is 41).
+	 */
+	entropyThreshold?: number;
+}
+export interface UseComponentExportOnlyModulesOptions {
+	/**
+	 * Allows the export of constants. This option is for environments that support it, such as [Vite](https://vitejs.dev/)
+	 */
+	allowConstantExport?: boolean;
+	/**
+	 * A list of names that can be additionally exported from the module This option is for exports that do not hinder [React Fast Refresh](https://github.com/facebook/react/tree/main/packages/react-refresh), such as [`meta` in Remix](https://remix.run/docs/en/main/route/meta)
+	 */
+	allowExportNames: string[];
 }
 export interface ConsistentMemberAccessibilityOptions {
-	accessibility: Accessibility;
+	accessibility?: Accessibility;
 }
 export interface UtilityClassSortingOptions {
 	/**
@@ -2334,7 +2571,7 @@ export interface UseValidAutocompleteOptions {
 	/**
 	 * `input` like custom components that should be checked.
 	 */
-	inputComponents: string[];
+	inputComponents?: string[];
 }
 /**
  * Options for the rule `noRestrictedGlobals`.
@@ -2346,7 +2583,7 @@ export interface RestrictedGlobalsOptions {
 	deniedGlobals: string[];
 }
 export interface ConsistentArrayTypeOptions {
-	syntax: ConsistentArrayType;
+	syntax?: ConsistentArrayType;
 }
 /**
  * Rule's options.
@@ -2356,6 +2593,10 @@ export interface FilenamingConventionOptions {
 	 * Allowed cases for file names.
 	 */
 	filenameCases: FilenameCases;
+	/**
+	 * Regular expression to enforce
+	 */
+	match?: Regex;
 	/**
 	 * If `false`, then non-ASCII characters are allowed.
 	 */
@@ -2386,6 +2627,12 @@ export interface NamingConventionOptions {
 	 */
 	strictCase: boolean;
 }
+/**
+ * Options for the `useSelfClosingElements` rule.
+ */
+export interface UseSelfClosingElementsOptions {
+	ignoreHtmlElements?: boolean;
+}
 export interface NoConsoleOptions {
 	/**
 	 * Allowed calls on the console object.
@@ -2403,6 +2650,8 @@ If `false`, no such exception will be made.
 	 */
 	ignoreNull: boolean;
 }
+export type ImportGroup = PredefinedImportGroup | Regex;
+export type DependencyAvailability = boolean | string[];
 export interface Hook {
 	/**
 	* The "position" of the closure function, starting from zero.
@@ -2419,7 +2668,7 @@ For example, for React's `useEffect()` hook, the dependencies index is 1.
 	/**
 	 * The name of the hook.
 	 */
-	name: string;
+	name?: string;
 	/**
 	* Whether the result of the hook is stable.
 
@@ -2432,6 +2681,7 @@ For example, for React's `useRef()` hook the value would be `true`, while for `u
 export type Accessibility = "noPublic" | "explicit" | "none";
 export type ConsistentArrayType = "shorthand" | "generic";
 export type FilenameCases = FilenameCase[];
+export type Regex = string;
 export interface Convention {
 	/**
 	 * String cases to enforce
@@ -2454,6 +2704,11 @@ export type Format =
 	| "CONSTANT_CASE"
 	| "PascalCase"
 	| "snake_case";
+export type PredefinedImportGroup =
+	| ":blank-line:"
+	| ":bun:"
+	| ":node:"
+	| ":types:";
 export type StableHookResult = boolean | number[];
 /**
  * Supported cases for file names.
@@ -2465,7 +2720,6 @@ export type FilenameCase =
 	| "PascalCase"
 	| "snake_case";
 export type Formats = Format[];
-export type Regex = string;
 export interface Selector {
 	/**
 	 * Declaration kind
@@ -2549,7 +2803,8 @@ export type DocumentFileSource =
 	| { Json: JsonFileSource }
 	| { Css: CssFileSource }
 	| { Graphql: GraphqlFileSource }
-	| { Html: HtmlFileSource };
+	| { Html: HtmlFileSource }
+	| { Grit: GritFileSource };
 export interface JsFileSource {
 	/**
 	 * Used to mark if the source is being used for an Astro, Svelte or Vue file
@@ -2572,6 +2827,9 @@ export interface GraphqlFileSource {
 }
 export interface HtmlFileSource {
 	variant: HtmlVariant;
+}
+export interface GritFileSource {
+	variant: GritVariant;
 }
 export type EmbeddingKind = "Astro" | "Vue" | "Svelte" | "None";
 export type Language =
@@ -2599,6 +2857,7 @@ export type CssVariant = "Standard";
  */
 export type GraphqlVariant = "Standard";
 export type HtmlVariant = "Standard" | "Astro";
+export type GritVariant = "Standard";
 export interface ChangeFileParams {
 	content: string;
 	path: BiomePath;
@@ -2790,21 +3049,31 @@ export type Category =
 	| "lint/nursery/noColorInvalidHex"
 	| "lint/nursery/noCommonJs"
 	| "lint/nursery/noConsole"
-	| "lint/nursery/noDestructure"
+	| "lint/nursery/noDescendingSpecificity"
+	| "lint/nursery/noDocumentCookie"
+	| "lint/nursery/noDocumentImportInPage"
 	| "lint/nursery/noDoneCallback"
 	| "lint/nursery/noDuplicateAtImportRules"
 	| "lint/nursery/noDuplicateCustomProperties"
 	| "lint/nursery/noDuplicateElseIf"
+	| "lint/nursery/noDuplicateProperties"
 	| "lint/nursery/noDuplicatedFields"
 	| "lint/nursery/noDynamicNamespaceImportAccess"
 	| "lint/nursery/noEnum"
 	| "lint/nursery/noExportedImports"
+	| "lint/nursery/noGlobalDirnameFilename"
+	| "lint/nursery/noHeadElement"
+	| "lint/nursery/noHeadImportInDocument"
+	| "lint/nursery/noImgElement"
 	| "lint/nursery/noImportantInKeyframe"
 	| "lint/nursery/noInvalidDirectionInLinearGradient"
 	| "lint/nursery/noInvalidGridAreas"
 	| "lint/nursery/noInvalidPositionAtImportRule"
 	| "lint/nursery/noIrregularWhitespace"
 	| "lint/nursery/noMissingGenericFamilyKeyword"
+	| "lint/nursery/noMissingVarFunction"
+	| "lint/nursery/noNestedTernary"
+	| "lint/nursery/noOctalEscape"
 	| "lint/nursery/noProcessEnv"
 	| "lint/nursery/noReactSpecificProps"
 	| "lint/nursery/noRestrictedImports"
@@ -2813,6 +3082,7 @@ export type Category =
 	| "lint/nursery/noShorthandPropertyOverrides"
 	| "lint/nursery/noStaticElementInteractions"
 	| "lint/nursery/noSubstr"
+	| "lint/nursery/noTemplateCurlyInString"
 	| "lint/nursery/noUndeclaredDependencies"
 	| "lint/nursery/noUnknownFunction"
 	| "lint/nursery/noUnknownMediaFeatureName"
@@ -2821,19 +3091,31 @@ export type Category =
 	| "lint/nursery/noUnknownPseudoClassSelector"
 	| "lint/nursery/noUnknownPseudoElement"
 	| "lint/nursery/noUnknownSelectorPseudoElement"
+	| "lint/nursery/noUnknownTypeSelector"
 	| "lint/nursery/noUnknownUnit"
 	| "lint/nursery/noUnmatchableAnbSelector"
 	| "lint/nursery/noUnusedFunctionParameters"
 	| "lint/nursery/noUselessEscapeInRegex"
+	| "lint/nursery/noUselessStringRaw"
+	| "lint/nursery/noUselessUndefined"
 	| "lint/nursery/noValueAtRule"
 	| "lint/nursery/useAdjacentOverloadSignatures"
 	| "lint/nursery/useAriaPropsSupportedByRole"
+	| "lint/nursery/useAtIndex"
 	| "lint/nursery/useBiomeSuppressionComment"
+	| "lint/nursery/useCollapsedIf"
+	| "lint/nursery/useComponentExportOnlyModules"
 	| "lint/nursery/useConsistentCurlyBraces"
 	| "lint/nursery/useConsistentMemberAccessibility"
 	| "lint/nursery/useDeprecatedReason"
+	| "lint/nursery/useExplicitFunctionReturnType"
+	| "lint/nursery/useExplicitType"
+	| "lint/nursery/useGoogleFontDisplay"
+	| "lint/nursery/useGoogleFontPreconnect"
+	| "lint/nursery/useGuardForIn"
 	| "lint/nursery/useImportRestrictions"
 	| "lint/nursery/useJsxCurlyBraceConvention"
+	| "lint/nursery/useNamedOperation"
 	| "lint/nursery/useSortedClasses"
 	| "lint/nursery/useStrictMode"
 	| "lint/nursery/useTrimStartEnd"
@@ -2983,6 +3265,10 @@ export type Category =
 	| "internalError/io"
 	| "internalError/fs"
 	| "internalError/panic"
+	| "reporter/parse"
+	| "reporter/format"
+	| "reporter/analyzer"
+	| "reporter/organizeImports"
 	| "parse"
 	| "lint"
 	| "lint/a11y"
@@ -3096,6 +3382,7 @@ export interface PullActionsParams {
 	path: BiomePath;
 	range?: TextRange;
 	skip: RuleCode[];
+	suppression_reason?: string;
 }
 export interface PullActionsResult {
 	actions: CodeAction[];
@@ -3111,7 +3398,7 @@ export interface CodeAction {
 [CodeActionKind]: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeActionKind
 	 */
 export type ActionCategory =
-	| "QuickFix"
+	| { QuickFix: string }
 	| { Refactor: RefactorKind }
 	| { Source: SourceActionKind }
 	| { Other: string };
@@ -3185,11 +3472,15 @@ export interface FixFileParams {
 	rule_categories: RuleCategories;
 	should_format: boolean;
 	skip: RuleCode[];
+	suppression_reason?: string;
 }
 /**
  * Which fixes should be applied during the analyzing phase
  */
-export type FixFileMode = "SafeFixes" | "SafeAndUnsafeFixes";
+export type FixFileMode =
+	| "SafeFixes"
+	| "SafeAndUnsafeFixes"
+	| "ApplySuppressions";
 export interface FixFileResult {
 	/**
 	 * List of all the code actions applied to the file
@@ -3235,7 +3526,7 @@ export interface RenameResult {
 }
 export type Configuration = PartialConfiguration;
 export interface Workspace {
-	fileFeatures(params: SupportsFeatureParams): Promise<SupportsFeatureResult>;
+	fileFeatures(params: SupportsFeatureParams): Promise<FileFeaturesResult>;
 	updateSettings(params: UpdateSettingsParams): Promise<void>;
 	registerProjectFolder(
 		params: RegisterProjectFolderParams

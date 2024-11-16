@@ -2,9 +2,12 @@
 
 use crate::lint;
 
+pub type NoDescendingSpecificity = < lint :: nursery :: no_descending_specificity :: NoDescendingSpecificity as biome_analyze :: Rule > :: Options ;
 pub type NoDuplicateAtImportRules = < lint :: suspicious :: no_duplicate_at_import_rules :: NoDuplicateAtImportRules as biome_analyze :: Rule > :: Options ;
 pub type NoDuplicateCustomProperties = < lint :: nursery :: no_duplicate_custom_properties :: NoDuplicateCustomProperties as biome_analyze :: Rule > :: Options ;
 pub type NoDuplicateFontNames = < lint :: suspicious :: no_duplicate_font_names :: NoDuplicateFontNames as biome_analyze :: Rule > :: Options ;
+pub type NoDuplicateProperties =
+    <lint::nursery::no_duplicate_properties::NoDuplicateProperties as biome_analyze::Rule>::Options;
 pub type NoDuplicateSelectorsKeyframeBlock = < lint :: suspicious :: no_duplicate_selectors_keyframe_block :: NoDuplicateSelectorsKeyframeBlock as biome_analyze :: Rule > :: Options ;
 pub type NoEmptyBlock =
     <lint::suspicious::no_empty_block::NoEmptyBlock as biome_analyze::Rule>::Options;
@@ -15,6 +18,8 @@ pub type NoInvalidGridAreas =
 pub type NoInvalidPositionAtImportRule = < lint :: correctness :: no_invalid_position_at_import_rule :: NoInvalidPositionAtImportRule as biome_analyze :: Rule > :: Options ;
 pub type NoIrregularWhitespace =
     <lint::nursery::no_irregular_whitespace::NoIrregularWhitespace as biome_analyze::Rule>::Options;
+pub type NoMissingVarFunction =
+    <lint::nursery::no_missing_var_function::NoMissingVarFunction as biome_analyze::Rule>::Options;
 pub type NoShorthandPropertyOverrides = < lint :: suspicious :: no_shorthand_property_overrides :: NoShorthandPropertyOverrides as biome_analyze :: Rule > :: Options ;
 pub type NoUnknownFunction =
     <lint::correctness::no_unknown_function::NoUnknownFunction as biome_analyze::Rule>::Options;
@@ -24,6 +29,7 @@ pub type NoUnknownProperty =
 pub type NoUnknownPseudoClass =
     <lint::nursery::no_unknown_pseudo_class::NoUnknownPseudoClass as biome_analyze::Rule>::Options;
 pub type NoUnknownPseudoElement = < lint :: nursery :: no_unknown_pseudo_element :: NoUnknownPseudoElement as biome_analyze :: Rule > :: Options ;
+pub type NoUnknownTypeSelector = < lint :: nursery :: no_unknown_type_selector :: NoUnknownTypeSelector as biome_analyze :: Rule > :: Options ;
 pub type NoUnknownUnit =
     <lint::correctness::no_unknown_unit::NoUnknownUnit as biome_analyze::Rule>::Options;
 pub type NoUnmatchableAnbSelector = < lint :: correctness :: no_unmatchable_anb_selector :: NoUnmatchableAnbSelector as biome_analyze :: Rule > :: Options ;

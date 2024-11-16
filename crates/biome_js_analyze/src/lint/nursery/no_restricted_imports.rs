@@ -12,17 +12,40 @@ declare_lint_rule! {
     ///
     /// ## Options
     ///
-    /// ```json
+    /// ```json,options
     /// {
-    ///     "noRestrictedImports": {
-    ///         "options": {
-    ///             "paths": {
-    ///                 "lodash": "Using lodash is not encouraged",
-    ///                 "underscore": "Using underscore is not encouraged"
-    ///             }
+    ///     "options": {
+    ///         "paths": {
+    ///             "lodash": "Using lodash is not encouraged",
+    ///             "underscore": "Using underscore is not encouraged"
     ///         }
     ///     }
     /// }
+    /// ```
+    ///
+    /// ## Examples
+    ///
+    /// ### Invalid
+    ///
+    /// ```js,expect_diagnostic,use_options
+    /// import "lodash";
+    /// import "allowed-import";
+    /// ```
+    ///
+    /// ```js,expect_diagnostic,use_options
+    /// const underscore = await import("underscore");
+    /// ```
+    ///
+    /// ```js,expect_diagnostic,use_options
+    /// const lodash = require("lodash");
+    /// ```
+    ///
+    /// ### Valid
+    ///
+    /// ```js,use_options
+    /// import "allowed-import";
+    /// const myImport = await import("allowed-import");
+    /// const myImport = require("allowed-import");
     /// ```
     pub NoRestrictedImports {
         version: "1.6.0",
@@ -39,11 +62,11 @@ declare_lint_rule! {
 /// Options for the rule `noRestrictedImports`.
 #[derive(Clone, Debug, Default, Deserialize, Deserializable, Eq, PartialEq, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields, default)]
 pub struct RestrictedImportsOptions {
     /// A list of names that should trigger the rule
     #[serde(skip_serializing_if = "FxHashMap::is_empty")]
-    paths: FxHashMap<String, String>,
+    paths: FxHashMap<Box<str>, Box<str>>,
 }
 
 impl Rule for NoRestrictedImports {

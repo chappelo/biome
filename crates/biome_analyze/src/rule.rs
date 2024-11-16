@@ -1,7 +1,9 @@
 use crate::categories::{ActionCategory, RuleCategory};
 use crate::context::RuleContext;
 use crate::registry::{RegistryVisitor, RuleLanguage, RuleSuppressions};
-use crate::{Phase, Phases, Queryable, SuppressionAction, SuppressionCommentEmitterPayload};
+use crate::{
+    Phase, Phases, Queryable, SourceActionKind, SuppressionAction, SuppressionCommentEmitterPayload,
+};
 use biome_console::fmt::Display;
 use biome_console::{markup, MarkupBuf};
 use biome_diagnostics::advice::CodeSuggestionAdvice;
@@ -12,6 +14,7 @@ use biome_diagnostics::{
     Visit,
 };
 use biome_rowan::{AstNode, BatchMutation, BatchMutationExt, Language, TextRange};
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 
@@ -85,7 +88,7 @@ impl TryFrom<FixKind> for Applicability {
 }
 
 #[derive(Debug, Clone, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub enum RuleSource {
     /// Rules from [Rust Clippy](https://rust-lang.github.io/rust-clippy/master/index.html)
@@ -106,6 +109,8 @@ pub enum RuleSource {
     EslintReact(&'static str),
     /// Rules from [Eslint Plugin React Hooks](https://github.com/facebook/react/blob/main/packages/eslint-plugin-react-hooks/README.md)
     EslintReactHooks(&'static str),
+    /// Rules from [Eslint Plugin React Refresh](https://github.com/ArnaudBarre/eslint-plugin-react-refresh)
+    EslintReactRefresh(&'static str),
     /// Rules from [Eslint Plugin Solid](https://github.com/solidjs-community/eslint-plugin-solid)
     EslintSolid(&'static str),
     /// Rules from [Eslint Plugin Sonar](https://github.com/SonarSource/eslint-plugin-sonarjs)
@@ -116,7 +121,7 @@ pub enum RuleSource {
     EslintTypeScript(&'static str),
     /// Rules from [Eslint Plugin Unicorn](https://github.com/sindresorhus/eslint-plugin-unicorn)
     EslintUnicorn(&'static str),
-    /// Rules from  [Eslint Plugin Unused Imports](https://github.com/sweepline/eslint-plugin-unused-imports)
+    /// Rules from [Eslint Plugin Unused Imports](https://github.com/sweepline/eslint-plugin-unused-imports)
     EslintUnusedImports(&'static str),
     /// Rules from [Eslint Plugin Mysticatea](https://github.com/mysticatea/eslint-plugin)
     EslintMysticatea(&'static str),
@@ -124,8 +129,12 @@ pub enum RuleSource {
     EslintBarrelFiles(&'static str),
     /// Rules from [Eslint Plugin N](https://github.com/eslint-community/eslint-plugin-n)
     EslintN(&'static str),
+    /// Rules from [Eslint Plugin Next](https://github.com/vercel/next.js/tree/canary/packages/eslint-plugin-next)
+    EslintNext(&'static str),
     /// Rules from [Stylelint](https://github.com/stylelint/stylelint)
     Stylelint(&'static str),
+    /// Rules from [Eslint Plugin No Secrets](https://github.com/nickdeis/eslint-plugin-no-secrets)
+    EslintNoSecrets(&'static str),
 }
 
 impl PartialEq for RuleSource {
@@ -146,6 +155,7 @@ impl std::fmt::Display for RuleSource {
             Self::EslintJsxA11y(_) => write!(f, "eslint-plugin-jsx-a11y"),
             Self::EslintReact(_) => write!(f, "eslint-plugin-react"),
             Self::EslintReactHooks(_) => write!(f, "eslint-plugin-react-hooks"),
+            Self::EslintReactRefresh(_) => write!(f, "eslint-plugin-react-refresh"),
             Self::EslintSolid(_) => write!(f, "eslint-plugin-solid"),
             Self::EslintSonarJs(_) => write!(f, "eslint-plugin-sonarjs"),
             Self::EslintStylistic(_) => write!(f, "eslint-plugin-stylistic"),
@@ -155,7 +165,9 @@ impl std::fmt::Display for RuleSource {
             Self::EslintMysticatea(_) => write!(f, "@mysticatea/eslint-plugin"),
             Self::EslintBarrelFiles(_) => write!(f, "eslint-plugin-barrel-files"),
             Self::EslintN(_) => write!(f, "eslint-plugin-n"),
+            Self::EslintNext(_) => write!(f, "@next/eslint-plugin-next"),
             Self::Stylelint(_) => write!(f, "Stylelint"),
+            Self::EslintNoSecrets(_) => write!(f, "eslint-plugin-no-secrets"),
         }
     }
 }
@@ -194,6 +206,7 @@ impl RuleSource {
             | Self::EslintJsxA11y(rule_name)
             | Self::EslintReact(rule_name)
             | Self::EslintReactHooks(rule_name)
+            | Self::EslintReactRefresh(rule_name)
             | Self::EslintTypeScript(rule_name)
             | Self::EslintSolid(rule_name)
             | Self::EslintSonarJs(rule_name)
@@ -203,6 +216,8 @@ impl RuleSource {
             | Self::EslintMysticatea(rule_name)
             | Self::EslintBarrelFiles(rule_name)
             | Self::EslintN(rule_name)
+            | Self::EslintNext(rule_name)
+            | Self::EslintNoSecrets(rule_name)
             | Self::Stylelint(rule_name) => rule_name,
         }
     }
@@ -217,6 +232,7 @@ impl RuleSource {
             Self::EslintJsxA11y(rule_name) => format!("jsx-a11y/{rule_name}"),
             Self::EslintReact(rule_name) => format!("react/{rule_name}"),
             Self::EslintReactHooks(rule_name) => format!("react-hooks/{rule_name}"),
+            Self::EslintReactRefresh(rule_name) => format!("react-refresh/{rule_name}"),
             Self::EslintTypeScript(rule_name) => format!("@typescript-eslint/{rule_name}"),
             Self::EslintSolid(rule_name) => format!("solidjs/{rule_name}"),
             Self::EslintSonarJs(rule_name) => format!("sonarjs/{rule_name}"),
@@ -226,7 +242,9 @@ impl RuleSource {
             Self::EslintMysticatea(rule_name) => format!("@mysticatea/{rule_name}"),
             Self::EslintBarrelFiles(rule_name) => format!("barrel-files/{rule_name}"),
             Self::EslintN(rule_name) => format!("n/{rule_name}"),
+            Self::EslintNext(rule_name) => format!("@next/{rule_name}"),
             Self::Stylelint(rule_name) => format!("stylelint/{rule_name}"),
+            Self::EslintNoSecrets(rule_name) => format!("no-secrets/{rule_name}"),
         }
     }
 
@@ -241,6 +259,7 @@ impl RuleSource {
             Self::EslintJsxA11y(rule_name) => format!("https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/main/docs/rules/{rule_name}.md"),
             Self::EslintReact(rule_name) => format!("https://github.com/jsx-eslint/eslint-plugin-react/blob/master/docs/rules/{rule_name}.md"),
             Self::EslintReactHooks(_) =>  "https://github.com/facebook/react/blob/main/packages/eslint-plugin-react-hooks/README.md".to_string(),
+            Self::EslintReactRefresh(_) => "https://github.com/ArnaudBarre/eslint-plugin-react-refresh".to_string(),
             Self::EslintTypeScript(rule_name) => format!("https://typescript-eslint.io/rules/{rule_name}"),
             Self::EslintSolid(rule_name) => format!("https://github.com/solidjs-community/eslint-plugin-solid/blob/main/packages/eslint-plugin-solid/docs/{rule_name}.md"),
             Self::EslintSonarJs(rule_name) => format!("https://github.com/SonarSource/eslint-plugin-sonarjs/blob/HEAD/docs/rules/{rule_name}.md"),
@@ -250,7 +269,9 @@ impl RuleSource {
             Self::EslintMysticatea(rule_name) => format!("https://github.com/mysticatea/eslint-plugin/blob/master/docs/rules/{rule_name}.md"),
             Self::EslintBarrelFiles(rule_name) => format!("https://github.com/thepassle/eslint-plugin-barrel-files/blob/main/docs/rules/{rule_name}.md"),
             Self::EslintN(rule_name) => format!("https://github.com/eslint-community/eslint-plugin-n/blob/master/docs/rules/{rule_name}.md"),
+            Self::EslintNext(rule_name) => format!("https://nextjs.org/docs/messages/{rule_name}"),
             Self::Stylelint(rule_name) => format!("https://github.com/stylelint/stylelint/blob/main/lib/rules/{rule_name}/README.md"),
+            Self::EslintNoSecrets(_) => "https://github.com/nickdeis/eslint-plugin-no-secrets/blob/master/README.md".to_string(),
         }
     }
 
@@ -274,7 +295,7 @@ impl RuleSource {
 }
 
 #[derive(Debug, Default, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub enum RuleSourceKind {
     /// The rule implements the same logic of the source
@@ -347,6 +368,18 @@ impl RuleMetadata {
         self.fix_kind
             .try_into()
             .expect("Fix kind is not set in the rule metadata")
+    }
+
+    pub fn action_category(&self, category: RuleCategory, group: &'static str) -> ActionCategory {
+        match category {
+            RuleCategory::Lint => {
+                ActionCategory::QuickFix(Cow::Owned(format!("{}.{}", group, self.name)))
+            }
+            RuleCategory::Action => {
+                ActionCategory::Source(SourceActionKind::Other(Cow::Borrowed(self.name)))
+            }
+            RuleCategory::Syntax | RuleCategory::Transformation => unimplemented!(""),
+        }
     }
 }
 
@@ -782,8 +815,8 @@ pub trait Rule: RuleMeta + Sized {
     /// *Note: For `noUnusedVariables` the above may not seem very useful (and
     /// indeed it's not implemented), but for rules such as
     /// `useExhaustiveDependencies` this is actually desirable.*
-    fn instances_for_signal(_signal: &Self::State) -> Vec<String> {
-        Vec::new()
+    fn instances_for_signal(_signal: &Self::State) -> Box<[Box<str>]> {
+        Vec::new().into_boxed_slice()
     }
 
     /// Used by the analyzer to associate a range of source text to a signal in
@@ -863,6 +896,7 @@ pub trait Rule: RuleMeta + Sized {
         ctx: &RuleContext<Self>,
         text_range: &TextRange,
         suppression_action: &dyn SuppressionAction<Language = RuleLanguage<Self>>,
+        suppression_reason: Option<&str>,
     ) -> Option<SuppressAction<RuleLanguage<Self>>>
     where
         Self: 'static,
@@ -883,6 +917,7 @@ pub trait Rule: RuleMeta + Sized {
                 mutation: &mut mutation,
                 token_offset: token,
                 diagnostic_text_range: text_range,
+                suppression_reason: suppression_reason.unwrap_or("<explanation>"),
             });
 
             Some(SuppressAction {
@@ -1047,17 +1082,18 @@ impl RuleDiagnostic {
 
     /// It creates a new footer note which contains a message and a list of possible suggestions.
     /// Useful when there's need to suggest a list of things inside a diagnostic.
-    pub fn footer_list(mut self, message: impl Display, list: &[impl Display]) -> Self {
-        if !list.is_empty() {
-            self.rule_advice.suggestion_list = Some(SuggestionList {
-                message: markup! { {message} }.to_owned(),
-                list: list
-                    .iter()
-                    .map(|msg| markup! { {msg} }.to_owned())
-                    .collect(),
-            });
-        }
-
+    pub fn footer_list(
+        mut self,
+        message: impl Display,
+        list: impl IntoIterator<Item = impl Display>,
+    ) -> Self {
+        self.rule_advice.suggestion_list = Some(SuggestionList {
+            message: markup! { {message} }.to_owned(),
+            list: list
+                .into_iter()
+                .map(|msg| markup! {{msg}}.to_owned())
+                .collect(),
+        });
         self
     }
 

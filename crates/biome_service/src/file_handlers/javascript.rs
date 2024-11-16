@@ -73,12 +73,14 @@ pub struct JsFormatterSettings {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct JsParserSettings {
     pub parse_class_parameter_decorators: bool,
+    pub grit_metavariables: bool,
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct JsLinterSettings {
     pub enabled: Option<bool>,
+    pub suppression_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
@@ -192,6 +194,7 @@ impl ServiceLanguage for JsLanguage {
         _language: Option<&Self::LinterSettings>,
         path: &BiomePath,
         _file_source: &DocumentFileSource,
+        suppression_reason: Option<String>,
     ) -> AnalyzerOptions {
         let preferred_quote =
             global
@@ -279,6 +282,7 @@ impl ServiceLanguage for JsLanguage {
         AnalyzerOptions {
             configuration,
             file_path: path.to_path_buf(),
+            suppression_reason,
         }
     }
 }
@@ -323,15 +327,13 @@ fn parse(
 ) -> ParseResult {
     let mut options = JsParserOptions {
         grit_metavariables: false,
-        parse_class_parameter_decorators: settings
-            .map(|settings| {
-                settings
-                    .languages
-                    .javascript
-                    .parser
-                    .parse_class_parameter_decorators
-            })
-            .unwrap_or_default(),
+        parse_class_parameter_decorators: settings.is_some_and(|settings| {
+            settings
+                .languages
+                .javascript
+                .parser
+                .parse_class_parameter_decorators
+        }),
     };
     if let Some(settings) = settings {
         options = settings
@@ -430,9 +432,11 @@ pub(crate) fn lint(params: LintParams) -> LintResults {
                 };
             };
             let tree = params.parse.tree();
-            let analyzer_options = &params
-                .workspace
-                .analyzer_options::<JsLanguage>(params.path, &params.language);
+            let analyzer_options = &params.workspace.analyzer_options::<JsLanguage>(
+                params.path,
+                &params.language,
+                params.suppression_reason,
+            );
 
             let rules = params
                 .workspace
@@ -544,11 +548,13 @@ pub(crate) fn code_actions(params: CodeActionsParams) -> PullActionsResult {
         language,
         only,
         skip,
+        suppression_reason,
     } = params;
     debug_span!("Code actions JavaScript", range =? range, path =? path).in_scope(move || {
         let tree = parse.tree();
         trace_span!("Parsed file", tree =? tree).in_scope(move || {
-            let analyzer_options = workspace.analyzer_options::<JsLanguage>(path, &language);
+            let analyzer_options =
+                workspace.analyzer_options::<JsLanguage>(path, &language, suppression_reason);
             let mut actions = Vec::new();
             let (enabled_rules, disabled_rules) =
                 AnalyzerVisitorBuilder::new(params.workspace.settings())
@@ -641,9 +647,11 @@ pub(crate) fn fix_all(params: FixAllParams) -> Result<FixFileResult, WorkspaceEr
     let mut actions = Vec::new();
     let mut skipped_suggested_fixes = 0;
     let mut errors: u16 = 0;
-    let analyzer_options = params
-        .workspace
-        .analyzer_options::<JsLanguage>(params.biome_path, &params.document_file_source);
+    let analyzer_options = params.workspace.analyzer_options::<JsLanguage>(
+        params.biome_path,
+        &params.document_file_source,
+        params.suppression_reason,
+    );
     loop {
         let (action, _) = analyze(
             &tree,
@@ -661,13 +669,16 @@ pub(crate) fn fix_all(params: FixAllParams) -> Result<FixFileResult, WorkspaceEr
                 }
 
                 for action in signal.actions() {
-                    // suppression actions should not be part of the fixes (safe or suggested)
-                    if action.is_suppression() {
-                        continue;
-                    }
-
                     match params.fix_file_mode {
+                        FixFileMode::ApplySuppressions => {
+                            if action.is_suppression() {
+                                return ControlFlow::Break(action);
+                            }
+                        }
                         FixFileMode::SafeFixes => {
+                            if action.is_suppression() {
+                                continue;
+                            }
                             if action.applicability == Applicability::MaybeIncorrect {
                                 skipped_suggested_fixes += 1;
                             }
@@ -677,6 +688,9 @@ pub(crate) fn fix_all(params: FixAllParams) -> Result<FixFileResult, WorkspaceEr
                             }
                         }
                         FixFileMode::SafeAndUnsafeFixes => {
+                            if action.is_suppression() {
+                                continue;
+                            }
                             if matches!(
                                 action.applicability,
                                 Applicability::Always | Applicability::MaybeIncorrect

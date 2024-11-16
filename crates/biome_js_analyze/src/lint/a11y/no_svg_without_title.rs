@@ -2,6 +2,7 @@ use biome_analyze::{context::RuleContext, declare_lint_rule, Ast, Rule, RuleDiag
 use biome_console::markup;
 use biome_js_syntax::{jsx_ext::AnyJsxElement, JsxAttribute, JsxChildList, JsxElement};
 use biome_rowan::{AstNode, AstNodeList};
+use biome_string_case::StrLikeExtension;
 
 declare_lint_rule! {
     /// Enforces the usage of the `title` element for the `svg` element.
@@ -113,7 +114,7 @@ impl Rule for NoSvgWithoutTitle {
     fn run(ctx: &RuleContext<Self>) -> Self::Signals {
         let node = ctx.query();
 
-        if node.name_value_token()?.text_trimmed() != "svg" {
+        if node.name_value_token().ok()?.text_trimmed() != "svg" {
             return None;
         }
 
@@ -149,7 +150,7 @@ impl Rule for NoSvgWithoutTitle {
             return Some(());
         };
 
-        match role_attribute_text.to_lowercase().as_str() {
+        match role_attribute_text.to_ascii_lowercase_cow().as_ref() {
             "img" => {
                 let [aria_label, aria_labelledby] = node
                     .attributes()
@@ -195,7 +196,7 @@ fn is_valid_attribute_value(
         .filter_map(|child| {
             let jsx_element = child.as_jsx_element()?;
             let opening_element = jsx_element.opening_element().ok()?;
-            let maybe_attribute = opening_element.find_attribute_by_name("id").ok()?;
+            let maybe_attribute = opening_element.find_attribute_by_name("id");
             let child_attribute_value = maybe_attribute?.initializer()?.value().ok()?;
             let is_valid = attribute_value.as_static_value()?.text()
                 == child_attribute_value.as_static_value()?.text();

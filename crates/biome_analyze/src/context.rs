@@ -1,6 +1,6 @@
 use crate::options::{JsxRuntime, PreferredQuote};
-use crate::RuleMetadata;
 use crate::{registry::RuleRoot, FromServices, Queryable, Rule, RuleKey, ServiceBag};
+use crate::{GroupCategory, RuleCategory, RuleGroup, RuleMetadata};
 use biome_diagnostics::{Error, Result};
 use std::ops::Deref;
 use std::path::Path;
@@ -8,10 +8,7 @@ use std::path::Path;
 type RuleQueryResult<R> = <<R as Rule>::Query as Queryable>::Output;
 type RuleServiceBag<R> = <<R as Rule>::Query as Queryable>::Services;
 
-pub struct RuleContext<'a, R>
-where
-    R: ?Sized + Rule,
-{
+pub struct RuleContext<'a, R: Rule> {
     query_result: &'a RuleQueryResult<R>,
     root: &'a RuleRoot<R>,
     bag: &'a ServiceBag,
@@ -54,6 +51,16 @@ where
 
     pub fn query(&self) -> &RuleQueryResult<R> {
         self.query_result
+    }
+
+    /// Returns the group that belongs to the current rule
+    pub fn group(&self) -> &'static str {
+        <R::Group as RuleGroup>::NAME
+    }
+
+    /// Returns the category that belongs to the current rule
+    pub fn category(&self) -> RuleCategory {
+        <<R::Group as RuleGroup>::Category as GroupCategory>::CATEGORY
     }
 
     /// Returns a clone of the AST root

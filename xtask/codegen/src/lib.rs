@@ -11,17 +11,18 @@ mod generate_nodes;
 mod generate_nodes_mut;
 mod generate_syntax_factory;
 mod generate_syntax_kinds;
+mod generate_target_language_constants;
 mod graphql_kind_src;
 mod grit_kinds_src;
 mod js_kinds_src;
 mod json_kinds_src;
+mod markdown_kinds_src;
 mod yaml_kinds_src;
 
 mod generate_crate;
 mod html_kinds_src;
 mod kind_src;
 mod language_kind;
-mod parser_tests;
 pub mod promote_rule;
 mod termcolorful;
 mod unicode;
@@ -37,7 +38,6 @@ pub use self::formatter::generate_formatters;
 pub use self::generate_analyzer::generate_analyzer;
 pub use self::generate_crate::generate_crate;
 pub use self::generate_new_analyzer_rule::{generate_new_analyzer_rule, LanguageKind};
-pub use self::parser_tests::generate_parser_tests;
 pub use self::unicode::generate_tables;
 
 pub enum UpdateResult {
@@ -103,9 +103,6 @@ pub enum TaskCommand {
     /// Transforms ungram files into AST
     #[bpaf(command)]
     Grammar(Vec<String>),
-    /// Extracts parser inline comments into test files
-    #[bpaf(command)]
-    Test,
     /// Generates unicode table inside lexer
     #[bpaf(command)]
     Unicode,

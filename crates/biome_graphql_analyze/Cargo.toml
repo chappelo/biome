@@ -16,8 +16,10 @@ biome_console            = { workspace = true }
 biome_deserialize        = { workspace = true }
 biome_deserialize_macros = { workspace = true }
 biome_diagnostics        = { workspace = true }
+biome_graphql_factory    = { workspace = true }
 biome_graphql_syntax     = { workspace = true }
 biome_rowan              = { workspace = true }
+biome_string_case        = { workspace = true }
 biome_suppression        = { workspace = true }
 schemars                 = { workspace = true, optional = true }
 serde                    = { workspace = true, features = ["derive"] }

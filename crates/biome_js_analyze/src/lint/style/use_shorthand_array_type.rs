@@ -1,6 +1,4 @@
-use biome_analyze::{
-    context::RuleContext, declare_lint_rule, ActionCategory, Ast, FixKind, Rule, RuleDiagnostic,
-};
+use biome_analyze::{context::RuleContext, declare_lint_rule, Ast, FixKind, Rule, RuleDiagnostic};
 use biome_console::markup;
 use biome_js_factory::make;
 use biome_js_syntax::{
@@ -125,7 +123,7 @@ impl Rule for UseShorthandArrayType {
                 }
             };
             return Some(JsRuleAction::new(
-                ActionCategory::QuickFix,
+                ctx.metadata().action_category(ctx.category(), ctx.group()),
                 ctx.metadata().applicability(),
                 message,
                 mutation,
@@ -237,7 +235,7 @@ fn convert_to_array_type(
             0 => {}
             1 => {
                 // SAFETY: We know that `length` of `array_types` is 1, so unwrap the first element should be safe.
-                let first_type = types_array.into_iter().next().unwrap();
+                let first_type = types_array.into_iter().next()?;
                 return Some(first_type);
             }
             length => {

@@ -1,7 +1,9 @@
-use crate::converters::{negotiated_encoding, PositionEncoding, WideEncoding};
+use biome_analyze::SUPPRESSION_ACTION_CATEGORY;
+use biome_lsp_converters::{negotiated_encoding, PositionEncoding, WideEncoding};
 use tower_lsp::lsp_types::{
-    ClientCapabilities, CodeActionProviderCapability, DocumentOnTypeFormattingOptions, OneOf,
-    PositionEncodingKind, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
+    DocumentOnTypeFormattingOptions, OneOf, PositionEncodingKind, ServerCapabilities,
+    TextDocumentSyncCapability, TextDocumentSyncKind,
 };
 
 /// The capabilities to send from server as part of [`InitializeResult`]
@@ -50,6 +52,29 @@ pub(crate) fn server_capabilities(capabilities: &ClientCapabilities) -> ServerCa
             }
         });
 
+    let code_action_provider = capabilities
+        .text_document
+        .as_ref()
+        .and_then(|text_document| text_document.code_action.as_ref())
+        .and_then(|code_action| code_action.code_action_literal_support.as_ref())
+        .map(|_| {
+            CodeActionOptions {
+                code_action_kinds: Some(vec![
+                    CodeActionKind::from("quickfix.biome"),
+                    // quickfix.suppressRule
+                    CodeActionKind::from(SUPPRESSION_ACTION_CATEGORY),
+                    CodeActionKind::from("source.fixAll.biome"),
+                    CodeActionKind::from("source.organizeImports.biome"),
+                    CodeActionKind::from("refactor.biome"),
+                    CodeActionKind::from("refactor.extract.biome"),
+                    CodeActionKind::from("refactor.inline.biome"),
+                    CodeActionKind::from("refactor.rewrite.biome"),
+                ]),
+                ..Default::default()
+            }
+            .into()
+        })
+        .or(Some(CodeActionProviderCapability::Simple(true)));
     ServerCapabilities {
         position_encoding: Some(match negotiated_encoding(capabilities) {
             PositionEncoding::Utf8 => PositionEncodingKind::UTF8,
@@ -64,7 +89,7 @@ pub(crate) fn server_capabilities(capabilities: &ClientCapabilities) -> ServerCa
         document_formatting_provider: supports_formatter_dynamic_registration,
         document_range_formatting_provider: supports_range_formatter_dynamic_registration,
         document_on_type_formatting_provider: supports_on_type_formatter_dynamic_registration,
-        code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+        code_action_provider,
         rename_provider: None,
         ..Default::default()
     }

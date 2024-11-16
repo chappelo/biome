@@ -1,6 +1,5 @@
 use biome_analyze::{
-    context::RuleContext, declare_lint_rule, ActionCategory, FixKind, Rule, RuleDiagnostic,
-    RuleSource,
+    context::RuleContext, declare_lint_rule, FixKind, Rule, RuleDiagnostic, RuleSource,
 };
 use biome_console::markup;
 use biome_js_syntax::{inner_string_text, AnyJsImportLike, JsSyntaxKind, JsSyntaxToken};
@@ -99,18 +98,18 @@ impl Rule for UseNodejsImportProtocol {
             module_name.kind() == JsSyntaxKind::JS_STRING_LITERAL,
             "The module name token should be a string literal."
         );
-        let delimiter = module_name.text_trimmed().chars().nth(0)?;
+        let str_delimiter = (*module_name.text_trimmed().as_bytes().first()?) as char;
         let module_inner_name = inner_string_text(module_name);
         let new_module_name = JsSyntaxToken::new_detached(
             JsSyntaxKind::JS_STRING_LITERAL,
-            &format!("{delimiter}node:{module_inner_name}{delimiter}"),
+            &format!("{str_delimiter}node:{module_inner_name}{str_delimiter}"),
             [],
             [],
         );
         let mut mutation = ctx.root().begin();
         mutation.replace_token(module_name.clone(), new_module_name);
         Some(JsRuleAction::new(
-            ActionCategory::QuickFix,
+            ctx.metadata().action_category(ctx.category(), ctx.group()),
             ctx.metadata().applicability(),
             markup! { "Add the "<Emphasis>"node:"</Emphasis>" protocol." }.to_owned(),
             mutation,
